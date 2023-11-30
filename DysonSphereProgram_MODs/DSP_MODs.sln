@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30309.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfiniteStationStorage", "InfiniteStationStorage\InfiniteStationStorage.csproj", "{1BBAE832-D615-4FB3-90DA-58A621C6622E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1BBAE832-D615-4FB3-90DA-58A621C6622E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1BBAE832-D615-4FB3-90DA-58A621C6622E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1BBAE832-D615-4FB3-90DA-58A621C6622E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1BBAE832-D615-4FB3-90DA-58A621C6622E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D961DB69-8D34-493C-B005-E4D8FA7D7DDB}
+	EndGlobalSection
+EndGlobal
