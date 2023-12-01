@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>3</ID>
+      <Description>"UTIL基础库加载"</Description>
+      <LastState/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{$lua}
+if syntaxcheck then return end
+if LaunchMonoDataCollector() == 0 then
+   local msg = '未找到MONO环境。后续MOD注入功能无法正常运行'
+   print(msg)
+   error(msg)
+   return
+end
+local the_src_file=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\dsp_mod_util.cs]]
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true)
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>2</ID>
+      <Description>"修改物流站存储上限"</Description>
+      <LastState/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\InfiniteStationStorage\]]
+local the_src_file=src_dir..[[dsp_mod_station_storage.cs]]
+local the_src_file2=src_dir..[[dsp_mod_station_storage_belt.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+Install_game_mod_from_file(the_src_file2,true)
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("UIStationStorage:OnItemIconMouseDown")
+Uninstall_game_mod("StationComponent:UpdateNeeds")
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>4</ID>
+      <Description>"============================================"</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+    </CheatEntry>
+  </CheatEntries>
+  <UserdefinedSymbols/>
+</CheatTable>
