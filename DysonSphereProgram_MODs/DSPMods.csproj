@@ -82,7 +82,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_belt.cs" />
     <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_building.cs" />
+    <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_inserter.cs" />
     <Compile Include="dsp_mod_Keyboard_Event_Loop.cs" />
     <Compile Include="dsp_mod_util.cs" />
     <Compile Include="InfiniteStationStorage\dsp_mod_station_storage.cs" />
