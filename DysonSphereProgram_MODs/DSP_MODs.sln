@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30309.148
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfiniteStationStorage", "InfiniteStationStorage\InfiniteStationStorage.csproj", "{1BBAE832-D615-4FB3-90DA-58A621C6622E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DSPMods", "DSPMods.csproj", "{1BBAE832-D615-4FB3-90DA-58A621C6622E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

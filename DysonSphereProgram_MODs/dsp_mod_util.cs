@@ -59,16 +59,33 @@ namespace DSP_CE_MOD
         }
     }
 
+    public static class Print_Message
+    {
+        [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        public static extern void OutputDebugStringW(string msg);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Print(string msg)
+        {/*
+            string msgU = Encoding.Unicode.GetString( 
+            Encoding.Convert(
+                Encoding.UTF8,
+                Encoding.Unicode,
+                Encoding.UTF8.GetBytes(msg)));*/
+            OutputDebugStringW(msg);
+        }
+    }
     public class DSP_Storage_Vault
     {//主要用于动画MOD存放额外的运行时数据
         //public Obj_Ani_Mgr ani_mgr = null;
-        public object ani_mgr = null;
+        /*public object ani_mgr = null;
         public bool ani_pause = false;
        // public LinkedList<DysonSphereAnimation> ani_link_list = null;
         public LinkedList<object> ani_link_list = new LinkedList<object>();
         public bool enable_camera = true;//默认识别并启用在ani_cfg.json文件中，名为camera的项，用它来控制机甲的位置，也就是控制了摄像机的位置。
         public int start_from_frame_index = 0;//每轮动画默认开始的帧的序号。
         public int interpolate_frame = 0;//动画插帧数量，即每两帧之间等待几帧空白
+        */
 
         static DSP_Storage_Vault g_static = null;//指向自身的单例
         public static DSP_Storage_Vault get_single_instance()
