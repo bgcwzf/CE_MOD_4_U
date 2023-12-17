@@ -35,49 +35,56 @@ namespace DSP_CE_MOD
                     VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
                     break;
                 case KeyCode.F2:
-                    //先用鼠标左键，选定某个对象（矿脉、树木、地面的石头、建筑等实体），然后按下F2键，即可将其移动到当前机甲所在的位置。
-                    SetObjectPos(this.inspectType, this.inspectId, this.player.position);
-                    Print_Message.Print(string.Format("Player position:({1},{2},{3})",0, this.player.position.x, this.player.position.y, this.player.position.z));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    //this.player.planetData.Load();
-                    //VFAudio.Create("ui-error", null, Vector3.zero, true, 5, -1, -1L);
+                    //初始化当前的groupIdx=1
+                    current_group_idx = 1;
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}",current_group_idx));
                     break;
                 case KeyCode.F3:
-                    //每按一次就修改当前星球上的每一个矿物的储量为现有储量的2倍
-                    Print_Message.Print(string.Format("Before DoubleTheAmountOfVein()"));
-                    DoubleTheAmountOfVein();
-                    Print_Message.Print(string.Format("After DoubleTheAmountOfVein()"));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    //this.player.planetData.LoadFactory();
-                    //VFAudio.Create("ui-click-1", null, Vector3.zero, true, 5, -1, -1L);
-                    break;
-                case KeyCode.F4:
-                    //寻找石油矿在veinPool中的序号
-                    init_oil_idx_in_vein_pool();
-                    Print_Message.Print(string.Format("Current oil vein index: {0} [F4], min={1}, max={2}", oil_idx_in_vein_pool,oil_idx_min,oil_idx_max));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
-                    break;
-                case KeyCode.F5:
-                    oil_idx_in_vein_pool++;
-                    Print_Message.Print(string.Format("Current oil vein index: {0} [F5], min={1}, max={2}", oil_idx_in_vein_pool, oil_idx_min, oil_idx_max));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
-                    break;
-                case KeyCode.F6:
-                    oil_idx_in_vein_pool--;
-                    Print_Message.Print(string.Format("Current oil vein index: {0} [F6], min={1}, max={2}", oil_idx_in_vein_pool, oil_idx_min, oil_idx_max));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
-                    break;
-                case KeyCode.F7:
-                    //移动选定的石油矿
-                    Print_Message.Print(string.Format("before set oil vein [{0}] position...., min={1}, max={2}", oil_idx_in_vein_pool, oil_idx_min, oil_idx_max));
-                    if (this.player.planetData.factory.veinGroups[this.player.planetData.factory.veinPool[oil_idx_in_vein_pool].groupIndex].type!= EVeinType.Oil)
+                    if (current_group_idx - 1 <= 0 )
                     {
-                        Print_Message.Print(string.Format("error set oil vein [{0}] position....the vein type is not oil", oil_idx_in_vein_pool));
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
                         break;
                     }
-                    SetObjectPos(EObjectType.Vein,oil_idx_in_vein_pool,this.player.position);
-                    Print_Message.Print(string.Format("after set oil vein [{0}] position...., min={1}, max={2}", oil_idx_in_vein_pool, oil_idx_min, oil_idx_max));
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
+                    current_group_idx--;
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    break;
+                case KeyCode.F4:
+                    if (current_group_idx+1 >= this.player.planetData.factory.veinGroups.Length)
+                    {
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        break;
+                    }
+                    current_group_idx++;
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    break;
+                case KeyCode.F5:
+                    //将当前选定资源组，移动到机甲所在的当前位置
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (MoveResourceGroupToPos(current_group_idx, this.player.position))
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    else
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    break;
+                case KeyCode.F6:
+                    //将当前选定资源组的矿产储量翻倍
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (SetAmoutOfResourceGroup(current_group_idx))
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    else
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    break;
+                case KeyCode.F7:
+                    //在当前选定资源组中，添加8个同类型的矿脉
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (AddVeinToResourceGroup(current_group_idx, 8))
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    else
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    break;
+                case KeyCode.F8:
+                    //针对资源的临时特定操作
+                    break;
+                case KeyCode.F9:
                     break;
             }
         }
@@ -125,8 +132,15 @@ namespace DSP_CE_MOD
             {
                 var v = pool[i];
                 if (v.id <= 0 || v.groupIndex <= 0 || v.amount <= 0 || (grps[v.groupIndex].type == EVeinType.None || grps[v.groupIndex].type == EVeinType.Oil) || grps[v.groupIndex].count <= 0) continue;
-                Print_Message.Print(string.Format("[ALL_DONE]This Vein=>id:{0},group index:{1},amount:{2},pos:({3},{4},{5})", v.id, v.groupIndex, v.amount, v.pos.x, v.pos.y, v.pos.z));
+                Print_Message.Print(string.Format("[ALL_DONE]This Vein=>id:{0},type={6},group index:{1},amount:{2},pos:({3},{4},{5})", v.id, v.groupIndex, v.amount, v.pos.x, v.pos.y, v.pos.z,v.type));
             }
+            for (int i = 0; i < grps.Length; i++)
+            {
+                var v = grps[i];
+                if (v.isNull || v.amount <= 0 || (v.type == EVeinType.None )) continue;
+                Print_Message.Print(string.Format(">>> Vein GROUPs on this planet=>idx:{0},type={1},amount:{2},vein count in group:{6}, pos:({3},{4},{5})", i, v.type, v.amount, v.pos.x, v.pos.y, v.pos.z,v.count));
+            }
+            after_work_of_veins();
         }
 
         public void SetObjectPos(EObjectType objType, int objid, Vector3 new_pos)
@@ -176,59 +190,109 @@ namespace DSP_CE_MOD
                 this.player.factory.enemyPool[objid].pos.z= new_pos.z;
             }
         }
-        public void DoubleTheAmountOfVein()
+        public bool MoveResourceGroupToPos(int groupID, Vector3 new_pos)
         {
+            if (groupID <= 0) return false;
             var pool = this.player.planetData.factory.veinPool;
             var grps = this.player.planetData.factory.veinGroups;
-
+            /*for (int i = 0; i < grps.Length; i++)
+            {
+                var g = grps[i];
+            }*/
+            int cnt = 0;
             for (int i = 0; i < pool.Length; i++)
             {
                 var v = pool[i];
-                //Print_Message.Print(string.Format("This Vein=>id:{0},group index:{1},amount:{2},pos:({3},{4},{5})", v.id,v.groupIndex,v.amount,v.pos.x,v.pos.y,v.pos.z));
-                if (v.id <= 0 || v.groupIndex <= 0 || v.amount <= 0 || (grps[v.groupIndex].type == EVeinType.None) || grps[v.groupIndex].count <= 0) continue;
-                if (pool[i].amount < 5000) pool[i].amount = 5000;
-                pool[i].amount *= 2;
-                if(grps[v.groupIndex].count<12)
-                pool[i].amount *= (int)(12.0f / grps[v.groupIndex].count);
+                if (v.groupIndex == groupID)
+                {
+                    SetObjectPos(EObjectType.Vein, i, new_pos);
+                    cnt++;
+                }
             }
+            if (cnt == 0)
+            {
+                Print_Message.Print(string.Format("[ERROR]The Resource Group has not vein items"));
+                return false;
+            }
+            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] has been moved to position:({4},{5},{6})",
+                groupID, grps[groupID].type, grps[groupID].amount, grps[groupID].count,new_pos.x,new_pos.y,new_pos.z));
+            after_work_of_veins();
+            return true;
         }
-        private void init_oil_idx_in_vein_pool()
+        public bool SetAmoutOfResourceGroup(int groupID)
         {
+            if (groupID <= 0) return false;
             var pool = this.player.planetData.factory.veinPool;
             var grps = this.player.planetData.factory.veinGroups;
-
+            /*for (int i = 0; i < grps.Length; i++)
+            {
+                var g = grps[i];
+            }*/
+            int cnt = 0;
             for (int i = 0; i < pool.Length; i++)
             {
                 var v = pool[i];
-
-                if (v.id <= 0 || v.groupIndex <= 0 || v.amount <= 0 || (grps[v.groupIndex].type == EVeinType.None) || grps[v.groupIndex].count <= 0) continue;
-                if(grps[v.groupIndex].type == EVeinType.Oil)
+                if (v.groupIndex == groupID)
                 {
-                    oil_idx_min=oil_idx_in_vein_pool = i;
-                    break;
+                    pool[i].amount = 200000;
+                    cnt++;
                 }
             }
-            if (oil_idx_in_vein_pool <= 0)
+            if (cnt == 0)
             {
-                Print_Message.Print(string.Format("Error, not found valid oil_idx_in_vein_pool...."));
-                return;
+                Print_Message.Print(string.Format("[ERROR]The Resource Group has not vein items"));
+                return false;
             }
-            for (int i = pool.Length-1; i >=0; i--)
+            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] amount has been doubled",
+                groupID,grps[groupID].type, grps[groupID].amount, grps[groupID].count));
+            after_work_of_veins();
+            return true;
+        }
+        public bool AddVeinToResourceGroup(int groupID,int vein_item_count_to_add)
+        {//在当前选定资源组中，添加8个同类型的矿脉
+            if (groupID <= 0) return false;
+            var pool = this.player.planetData.factory.veinPool;
+            var grps = this.player.planetData.factory.veinGroups;
+            /*for (int i = 0; i < grps.Length; i++)
+            {
+                var g = grps[i];
+            }*/
+            int cnt = 0;
+            for (int i = 0; i < pool.Length; i++)
             {
                 var v = pool[i];
-
-                if (v.id <= 0 || v.groupIndex <= 0 || v.amount <= 0 || (grps[v.groupIndex].type == EVeinType.None) || grps[v.groupIndex].count <= 0) continue;
-                if (grps[v.groupIndex].type == EVeinType.Oil)
+                if (v.groupIndex == groupID)
                 {
-                    oil_idx_max = i;
+                    cnt++;
+
+                    for (int j = 0; j < vein_item_count_to_add; j++)
+                    {
+                        var new_vein = new VeinData();
+                        new_vein = v;
+                        new_vein.amount = 20000;
+                        this.player.planetData.factory.AddVeinData(new_vein);
+                    }
+
                     break;
                 }
             }
-            Print_Message.Print(string.Format("Success find range of oil_idx_in_vein_pool: [{0},{1}]", oil_idx_min, oil_idx_max));
+            if (cnt == 0)
+            {
+                Print_Message.Print(string.Format("[ERROR]The Resource Group has not vein items"));
+                return false;
+            }
+            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] vein count has been added {4}",
+                groupID, grps[groupID].type, grps[groupID].amount, grps[groupID].count,vein_item_count_to_add));
+            after_work_of_veins();
+            return true;
+        }
+        private void after_work_of_veins()
+        {
+            this.player.planetData.factory.RecalculateAllVeinGroups();
+            //this.player.controller.actionPlant.PlantVeinFinally();
         }
         private int is_hot_key_set = 0;
-        private int oil_idx_in_vein_pool = -1;
-        private int oil_idx_min = -1, oil_idx_max = -1;
+        private int current_group_idx = -1;
         // PlayerAction_Inspect  
         // Token: 0x06000D7A RID: 3450 RVA: 0x000E30A0 File Offset: 0x000E12A0
         //VFAudio.Create("ui-click-0", null, Vector3.zero, true, 2, -1, -1L);
@@ -236,13 +300,6 @@ namespace DSP_CE_MOD
         public void new_SetInspectee(EObjectType objType, int objId)
         {
             old_SetInspectee(objType, objId);
-            Print_Message.Print(string.Format("Hot key Enable State...{0}",is_hot_key_set));
-            if (is_hot_key_set == 0)
-            {
-                KeyEvtMgr.key_evt.RegisterKeyEventHandler(onKeyResp);
-                Print_Message.Print(string.Format("Enable Hot key for this mod.......success"));
-                is_hot_key_set = 1;
-            }
 
 #if true
             if (objId == 0)
@@ -270,6 +327,19 @@ namespace DSP_CE_MOD
             if (objType == EObjectType.Vein)
             {
                 objId = this.player.factory.veinPool[objId].id;
+
+                Print_Message.Print(string.Format("Hot key Enable State...{0}", is_hot_key_set));
+                if (is_hot_key_set == 0)
+                {
+                    KeyEvtMgr.key_evt.RegisterKeyEventHandler(onKeyResp);
+                    Print_Message.Print(string.Format("[SUCCESS]Enable Hot key for this mod...."));
+                    is_hot_key_set = 1;
+                }
+
+                current_group_idx = this.player.factory.veinPool[objId].groupIndex;
+                var grps = this.player.planetData.factory.veinGroups;
+                Print_Message.Print(string.Format("==>Mouse click on Current Resource Group [groupID: {0} type:{1} amount:{2} vein_count:{3}]",
+                    current_group_idx, grps[current_group_idx].type, grps[current_group_idx].amount, grps[current_group_idx].count));
             }
             if (objType == EObjectType.Enemy)
             {
