@@ -27,6 +27,7 @@ namespace DSP_CE_MOD
                         KeyEvtMgr.key_evt.UnregisterKeyEventHandler(onKeyResp);
                         is_hot_key_set = 0;
                         Print_Message.Print(string.Format("KeyEvtMgr.key_evt.UnregisterKeyEventHandler() ... unloaded...."));
+                        UIRealtimeTip.Popup("已加载MOD，需要点选某个矿脉进行启用", false, 1);
                         VFAudio.Create("ui-error", null, Vector3.zero, true);
                         break;
                     }
@@ -82,9 +83,27 @@ namespace DSP_CE_MOD
                         VFAudio.Create("ui-error", null, Vector3.zero, true);
                     break;
                 case KeyCode.F8:
-                    //针对资源的临时特定操作
+                    //改变当前选定的矿脉的类型。具体类型id由DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组的下标[2]来指定(可以在CE中动态指定)
+                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (SetTypeOfResourceGroup(current_group_idx))
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    else
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    //this.player.factory.DebugEntityGUI();
+                   // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    //GameMain.history.solarSailLife += 100;
                     break;
                 case KeyCode.F9:
+                   // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    if (AddResourceGroup())
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    else
+                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    //GameMain.history.solarSailLife += 100;
+                    break;
+                case KeyCode.F10:
+                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    UIRealtimeTip.Popup("已加载MOD，需要点选某个矿脉进行启用", false, 1);
                     break;
             }
         }
@@ -98,7 +117,7 @@ namespace DSP_CE_MOD
 
             /* 
             Vector3[] vecOfEachGroup = new Vector3[100];
-            // 注意，这里有一个巨大的“天坑”！！！！
+            // 注意，这里有一个巨大的“天坑”！！！！Vector3是一个Struct类型，对它的访问和赋值，都是“值访问”而不是“引用”
             //将对象数组中的某项取出来之后，得到的是对象的副本，对其进行修改，是无法影响原来的对象的。这一点与Python和JavaScript不同！！！！
             Vector3 p =vecOfEachGroup[0];
             p.x = 100;
@@ -182,6 +201,7 @@ namespace DSP_CE_MOD
                 this.player.factory.veinPool[objid].pos.x= new_pos.x;
                 this.player.factory.veinPool[objid].pos.y= new_pos.y;
                 this.player.factory.veinPool[objid].pos.z= new_pos.z;
+                this.player.factory.RefreshVeinMiningDisplay(this.player.factory.veinPool[objid].id, 0, 0);
             }
             if (objType == EObjectType.Enemy)
             {
@@ -207,6 +227,14 @@ namespace DSP_CE_MOD
                 {
                     SetObjectPos(EObjectType.Vein, i, new_pos);
                     cnt++;
+                    /*
+                    if (this.player.factory.planet.physics != null)
+                    {
+                        Print_Message.Print(string.Format("[SetPlanetPhysicsColliderDirty]"));
+                        this.player.factory.planet.physics.SetPlanetPhysicsColliderDirty();
+                        //this.player.factory.planet.physics.LateUpdate();
+                        //this.player.factory.planet.physics.Update();
+                    }*/
                 }
             }
             if (cnt == 0)
@@ -234,7 +262,7 @@ namespace DSP_CE_MOD
                 var v = pool[i];
                 if (v.groupIndex == groupID)
                 {
-                    pool[i].amount = 200000;
+                    pool[i].amount = 500000;
                     cnt++;
                 }
             }
@@ -243,7 +271,7 @@ namespace DSP_CE_MOD
                 Print_Message.Print(string.Format("[ERROR]The Resource Group has not vein items"));
                 return false;
             }
-            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] amount has been doubled",
+            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] amount has been set",
                 groupID,grps[groupID].type, grps[groupID].amount, grps[groupID].count));
             after_work_of_veins();
             return true;
@@ -286,6 +314,138 @@ namespace DSP_CE_MOD
             after_work_of_veins();
             return true;
         }
+        public bool SetTypeOfResourceGroup(int groupID)
+        {
+            //通过DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组，来和CE进行数据交换。目前暂定分配[2]这一下标对应的项，给本功能使用。接收来自用户输入的矿物类型ID值
+            if (groupID <= 0) return false;
+            if (DSP_Storage_Vault.ce_mod_data_exchange[2] == null)
+            {
+                //因为第一次使用时，该项为null，首先要装箱一个int对象进来，然后CE中才可以修改它的值
+                int a = 10000;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)a;
+                return false;
+            }
+            VeinProto[] veinProtos = PlanetModelingManager.veinProtos;
+            int[] veinModelIndexs = PlanetModelingManager.veinModelIndexs;
+            int[] veinModelCounts = PlanetModelingManager.veinModelCounts;
+            int[] veinProducts = PlanetModelingManager.veinProducts;
+            PlanetRawData data = this.player.planetData.data;
+            var pool = this.player.planetData.factory.veinPool;
+            var grps = this.player.planetData.factory.veinGroups;
+            int cnt = 0;
+            /*for (int i = 0; i < grps.Length; i++)
+            {
+                var g = grps[i];
+            }*/
+            int newType = (int)DSP_Storage_Vault.ce_mod_data_exchange[2];
+            Print_Message.Print(string.Format("[SetTypeOfResourceGroup]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] vein new TypeID is: {4}",
+                groupID, grps[groupID].type, grps[groupID].amount, grps[groupID].count, newType));
+            for (int i = 0; i < pool.Length; i++)
+            {
+                var v = pool[i];
+                if (v.groupIndex == groupID)
+                {
+                    pool[i].type = (EVeinType)newType;//修改矿脉类型
+                    pool[i].productId = veinProducts[newType];//修改产出物的类型
+                    pool[i].modelIndex = (short)veinModelIndexs[newType];// 修改外观模型类型 dotNet35Random2.Next(veinModelIndexs[num20], veinModelIndexs[num20] + veinModelCounts[num20]);
+                    //pool[i].amount = 10001;
+                    grps[v.groupIndex].type = (EVeinType)newType;
+
+                    cnt++;
+                }
+            }
+            Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] type has been changed",
+                groupID, grps[groupID].type, grps[groupID].amount, grps[groupID].count));
+            after_work_of_veins();
+            return true;
+        }
+        public bool AddResourceGroup()
+        {
+            int vein_item_count_to_add = 30; //一次性创建一个含有多少个子矿脉的矿脉资源组
+            //通过DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组，来和CE进行数据交换。目前暂定分配[2]这一下标对应的项，给本功能使用。接收来自用户输入的矿物类型ID值
+            if (DSP_Storage_Vault.ce_mod_data_exchange[2] == null)
+            {
+                //因为第一次使用时，该项为null，首先要装箱一个int对象进来，然后CE中才可以修改它的值
+                int a = 10000;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)a;
+                return false;
+            }
+            int newType = (int)DSP_Storage_Vault.ce_mod_data_exchange[2];//从CE中取得需要创建的矿脉的类型
+
+            int newGrpIdx = -1;
+            if (newType > (int)EVeinType.None && newType < (int)EVeinType.Max)
+            {
+                VeinGroup newGroup = new VeinGroup();//VeinGroup 是一个struct，将会是“值访问”的方式
+                newGroup.SetNull();
+                newGroup.count = vein_item_count_to_add;
+                newGroup.amount = 1;//这里的总量是各个子矿脉的矿物数量之和
+                newGroup.type = (EVeinType)newType;
+                newGroup.pos = this.player.position;
+                newGrpIdx = this.player.factory.AddVeinGroup(newGroup);
+                this.player.factory.ArrangeVeinGroups();
+                int groupID = newGrpIdx;
+                Print_Message.Print(string.Format("[AddResourceGroup] Add The New Resource Group [newGroupID:{0}] vein new TypeID is: {1}",
+                    groupID, newType));
+            }
+            else
+            {
+                Print_Message.Print(string.Format("[ERROR]The Resource Type is wrong. must be a int value between {0} and {1}.", (int)EVeinType.None, (int)EVeinType.Max));
+                return false;
+            }
+
+            VeinData veinData = default(VeinData);
+            EVeinType eveinType2 = (EVeinType)newType;
+            VeinProto[] veinProtos = PlanetModelingManager.veinProtos;
+            int[] veinModelIndexs = PlanetModelingManager.veinModelIndexs;
+            int[] veinModelCounts = PlanetModelingManager.veinModelCounts;
+            int[] veinProducts = PlanetModelingManager.veinProducts;
+            //PlanetRawData data = this.player.planetData.data;
+            for (int n = 0; n < vein_item_count_to_add; n++)
+            {
+                //Vector3 b = (this.tmp_vecs[n].x * a + this.tmp_vecs[n].y * a2) * num;
+                veinData.type = eveinType2;
+                veinData.groupIndex = (short)newGrpIdx;
+                veinData.modelIndex = (short)veinModelIndexs[newType];// dotNet35Random2.Next(veinModelIndexs[num20], veinModelIndexs[num20] + veinModelCounts[num20]);
+                veinData.amount = 210001;
+                veinData.productId = veinProducts[newType];
+                veinData.pos = this.player.position;
+                veinData.minerCount = 0;
+                //float num29 = data.QueryHeight(veinData.pos);
+                //data.EraseVegetableAtPoint(veinData.pos);
+                //veinData.pos = veinData.pos.normalized * num29;
+                VeinData[] veinPool = this.player.planetData.factory.veinPool;
+                //data.AddVeinData(veinData); // maybe
+                int num = this.player.planetData.factory.AddVeinData(veinData);//get new Idx in veinPool
+
+                //Print_Message.Print(string.Format("now vein pool length:{0}",veinPool.Length));
+                veinPool[num].modelId = this.player.planetData.factoryModel.gpuiManager.AddModel((int)veinPool[num].modelIndex, num, veinPool[num].pos, new Quaternion(), true);
+                //Print_Message.Print(string.Format("new vein idx:{0}", num));
+                //VeinProto veinProto = LDB.veins.Select(this.handPlantPreview.protoId);
+                /*VeinProto veinProto = LDB.veins.Select(this.handVeinProtoId);
+                ColliderData[] colliders = veinProto.prefabDesc.colliders;
+                int num2 = 0;
+                while (colliders != null && num2 < colliders.Length)
+                {
+                    veinPool[num].colliderId = this.planet.physics.AddColliderData(colliders[num2].BindToObject(num, veinPool[num].colliderId, EObjectType.Vein, veinPool[num].pos, Quaternion.FromToRotation(Vector3.up, veinPool[num].pos.normalized)));
+                    num2++;
+                }*/
+                this.player.planetData.factory.RefreshVeinMiningDisplay(num, 0, 0);
+            }
+
+            this.player.planetData.factory.RecalculateVeinGroup(newGrpIdx);
+
+            this.player.factory.ArrangeVeinGroups();
+            /*
+            if (cnt == 0)
+            {
+                Print_Message.Print(string.Format("[ERROR]The Resource Group has not vein items"));
+                return false;
+            }*/
+            //Print_Message.Print(string.Format("[ALL_DONE]The Resource Group [id:{0} type:{1} amount:{2} vein_count:{3}] type has been changed",
+            //    groupID, grps[groupID].type, grps[groupID].amount, grps[groupID].count));
+            after_work_of_veins();
+            return true;
+        }
         private void after_work_of_veins()
         {
             this.player.planetData.factory.RecalculateAllVeinGroups();
@@ -293,6 +453,8 @@ namespace DSP_CE_MOD
         }
         private int is_hot_key_set = 0;
         private int current_group_idx = -1;
+        //public static object[] exchange_addresses = new object[1024*10];
+        //这里留下这样的特征，是为了让CE能够通过内存寻找的方式，找到这个数组，然后进行内存数据的交换
         // PlayerAction_Inspect  
         // Token: 0x06000D7A RID: 3450 RVA: 0x000E30A0 File Offset: 0x000E12A0
         //VFAudio.Create("ui-click-0", null, Vector3.zero, true, 2, -1, -1L);
@@ -300,7 +462,6 @@ namespace DSP_CE_MOD
         public void new_SetInspectee(EObjectType objType, int objId)
         {
             old_SetInspectee(objType, objId);
-
 #if true
             if (objId == 0)
             {
@@ -315,10 +476,52 @@ namespace DSP_CE_MOD
             if (objType == EObjectType.Entity)
             {
                 objId = this.player.factory.entityPool[objId].id;
+                /*var item_proto = this.GetItemProto(objId, this.player.factory);
+                if (item_proto != null)
+                {
+                    exchange_addresses[2] = item_proto.prefabDesc;
+                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                }
+                else*/
+                {
+                    //Print_Message.Print(string.Format("[entityPool]111...."));
+                    var mdidx = this.player.factory.entityPool[objId].modelIndex;
+                    //Print_Message.Print(string.Format("[entityPool]222...."));
+                    ModelProto modelProto = LDB.models.Select(mdidx);
+                    //Print_Message.Print(string.Format("[entityPool]333...."));
+                    if (modelProto != null)
+                    {
+                        //VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        DSP_Storage_Vault.ce_mod_data_exchange[1] = modelProto.prefabDesc;
+                    }
+                }
+                /*
+                var prefab = item_proto.prefabDesc;
+                GCHandle handle = GCHandle.Alloc(item_proto.prefabDesc, GCHandleType.Pinned);
+
+                try
+                {
+                    IntPtr address = handle.AddrOfPinnedObject();
+                    //Console.WriteLine("Address: " + address);
+                    exchange_addresses[2] = address.ToInt64();
+                }
+                finally
+                {
+                    handle.Free();
+                }*/
             }
             if (objType == EObjectType.Craft)
             {
                 objId = this.player.factory.craftPool[objId].id;
+                var mdidx = this.player.factory.craftPool[objId].modelIndex;
+                ModelProto modelProto = LDB.models.Select(mdidx);
+                //Print_Message.Print(string.Format("[entityPool]333...."));
+                if (modelProto != null)
+                {
+                    //VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    DSP_Storage_Vault.ce_mod_data_exchange[1] = modelProto.prefabDesc;
+                }
+                VFAudio.Create("ui-click-2", null, Vector3.zero, true);
             }
             if (objType == EObjectType.Vegetable)
             {

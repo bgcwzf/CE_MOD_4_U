@@ -96,5 +96,16 @@ namespace DSP_CE_MOD
             }
             return g_static;
         }
+        public static object[] ce_mod_data_exchange = new object[1024*10];//需要创建一个静态的数据交换区，使用CE中的LUA脚本来获取这个区域的地址：
+        /*
+local cId = mono_findClass('DSP_CE_MOD', 'DSP_Storage_Vault')
+print(cId)
+local st_addr=(mono_class_getStaticFieldAddress(nil, cId))
+-- 对于64位系统，st_addr的第一项是第一个静态对象的地址，在st_addr的地址值上，不断地增加8，即可得到后面的静态项。所以ce_mod_data_exchange的地址就是st_addr+8
+print(st_addr)
+local the_arr=readPointer(st_addr+8)
+the_arr=the_arr+0x20 -- C# Array Header Size
+registerSymbol("mod_data_exchange_array",the_arr)
+         */
     }
 }

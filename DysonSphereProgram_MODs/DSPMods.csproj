@@ -33,7 +33,6 @@
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>ManagedDeps\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
     </Reference>
     <Reference Include="netstandard">
       <HintPath>ManagedDeps\netstandard.dll</HintPath>
@@ -82,15 +81,22 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_addon.cs" />
     <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_belt.cs" />
+    <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_blueprint.cs" />
     <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_building.cs" />
     <Compile Include="DisableBuildingCollide\dsp_mod_disable_collide_inserter.cs" />
     <Compile Include="dsp_mod_Keyboard_Event_Loop.cs" />
     <Compile Include="dsp_mod_util.cs" />
     <Compile Include="InfiniteStationStorage\dsp_mod_station_storage.cs" />
     <Compile Include="InfiniteStationStorage\dsp_mod_station_storage_belt.cs" />
+    <Compile Include="NewGame_MoreStars\dsp_mod_NewGame_StarCount.cs" />
+    <Compile Include="NewGame_MoreStars\dsp_mod_PlanetGen.cs" />
+    <Compile Include="NewGame_MoreStars\dsp_mod_StarGen.cs" />
+    <Compile Include="PlayerOrderQueue\dsp_mod_no_limit_player_orders.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegroupVeins\dsp_mod_RegroupWhenClickVein.cs" />
+    <Compile Include="WeaponPatch\dsp_mod_turret_attack_range.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
