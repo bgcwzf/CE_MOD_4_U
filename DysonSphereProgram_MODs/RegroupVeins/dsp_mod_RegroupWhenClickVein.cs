@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using UnityEngine.EventSystems;
 
 
+//以下是旧的注释
 //MOD_PATCH_TARGET==>PlayerAction_Inspect:SetInspectee
 //MOD_NEW_METHOD==>DSP_CE_MOD.RegouopVeins_PlayerAction_Inspect:new_SetInspectee
 //MOD_OLD_CALLER==>DSP_CE_MOD.RegouopVeins_PlayerAction_Inspect:old_SetInspectee
@@ -16,94 +17,227 @@ namespace DSP_CE_MOD
     public class RegouopVeins_PlayerAction_Inspect : PlayerAction_Inspect
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public void PopupMessage(string msg,bool sound=false)
+        {
+            UIRealtimeTip.Popup(msg, sound, 0);
+        }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void ShowMessageBox(string msg)
+        {
+            //UIMessageBox.Show("title",msg,"btn1_name","btn2_name", 2, null, new UIMessageBox.Response(this.onBtnClick));
+            //var box = UIMessageBox.Show("拆除储物仓标题".Translate(), "拆除储物仓文字".Translate(), "否".Translate(), "是".Translate(), 1, new UIMessageBox.Response(this.DismantleQueryCancel), new UIMessageBox.Response(this.DismantleQueryConfirm));
+        }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void regist_key_event()
+        {
+            VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+            Print_Message.Print(string.Format("Hot key Enable State...{0}", is_hot_key_set));
+            if (is_hot_key_set == 0)
+            {
+                KeyEvtMgr.key_evt.RegisterKeyEventHandler(onKeyResp);
+                Print_Message.Print(string.Format("[SUCCESS]Enable Hot key for this mod...."));
+                is_hot_key_set = 1;
+                GameMain.onGameEnded += this.OnGameEnded;
+            }
+        }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void unregist_key_event()
+        {
+            GameMain.onGameEnded -= this.OnGameEnded;
+            VFAudio.Create("ui-error", null, Vector3.zero, true);
+            KeyEvtMgr.key_evt.UnregisterKeyEventHandler(onKeyResp);
+            is_hot_key_set = 0;
+            Print_Message.Print(string.Format("KeyEvtMgr.key_evt.UnregisterKeyEventHandler(\"ResourceVeinsManager_Patch\") ... unloaded...."));
+        }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void OnGameEnded()
+        {
+            KeyEvtMgr.key_evt.UnregisterKeyEventHandler(onKeyResp);
+            is_hot_key_set = 0;
+            Print_Message.Print(string.Format("KeyEvtMgr.key_evt.UnregisterKeyEventHandler(\"ResourceVeinsManager_Patch\") ... unloaded...."));
+        }
+   
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public void onKeyResp(KeyCode keyCode)
         {
             Print_Message.Print(string.Format("RegouopVeins_PlayerAction_Inspect ...onKeyResp(KeyCode:{0})",keyCode));
+            var pv_planetId = PrivateHelper<Player>.GetPrivateField("_planetId");
+            int cur_planet_id = (int)pv_planetId.GetValue(this.player);
+            Print_Message.Print(string.Format("RegouopVeins_PlayerAction_Inspect.Current Resource Group ID: {0} on Planet [ID:{1}]", current_group_idx, cur_planet_id));
+            if (this.player.movementState == EMovementState.Sail|| cur_planet_id <= 0)//在太空中航行时，这些快捷键不生效。但是可以执行卸载程序
+            {
+                //unregist_key_event();
+                //PopupMessage("因为现在已离开星球，所以先禁用资源组操作MOD。");
+                last_planet_id = 0;
+                current_group_idx = 0;
+                return;
+            }
+            if (last_planet_id != cur_planet_id)
+            {//行星发生了变化，也要重置当前序号
+                current_group_idx = 0;
+            }
+            last_planet_id = cur_planet_id;
+            string tmp_str = "";
+            int tmp_val=0;
+            if (DSP_Storage_Vault.ce_mod_data_exchange[2] == null)
+            {
+                //因为第一次使用时，该项为null，首先要装箱一个int对象进来，然后CE中才可以修改它的值
+                int a = 10000;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)a;
+            }
+            EVeinType veinType=EVeinType.None;
             switch (keyCode)
             {
                 case KeyCode.F1:
                     if (Input.GetKey(KeyCode.LeftControl))
-                    {//按下Ctrl+F1的时候，就是卸载当前键盘事件处理的代理程序
-                        KeyEvtMgr.key_evt.UnregisterKeyEventHandler(onKeyResp);
-                        is_hot_key_set = 0;
-                        Print_Message.Print(string.Format("KeyEvtMgr.key_evt.UnregisterKeyEventHandler() ... unloaded...."));
-                        UIRealtimeTip.Popup("已加载MOD，需要点选某个矿脉进行启用", false, 1);
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    {//按下左边的Ctrl+F1的时候，就是卸载当前键盘事件处理的代理程序
+                        unregist_key_event();
+                        PopupMessage("已临时禁用资源处理MOD，需要点选某个矿脉对象进行启用");
                         break;
                     }
+                    if (Input.GetKey(KeyCode.LeftShift))
+                    {//按下左边的Shift+F1的时候，初始化当前的groupIdx=1
+                        current_group_idx = 1;
+                        PopupMessage("已经将当前资源组的操作序号设置为 1");
+                        //因为【0】号元素是默认的一个占位元素。所以有效的下标从1开始
+                        break;
+                    }
+                    //以下是只按下F1键的处理
                     //正式开始执行矿脉重排的任务
                     ArrangeVeins();
                     VFAudio.Create("ui-click-2", null, Vector3.zero, true);//, 5, -1, -1L);
+                    PopupMessage("已经原地集合了当前星球上的所有矿脉【需要刷新后查看】");
                     break;
                 case KeyCode.F2:
-                    //初始化当前的groupIdx=1
-                    current_group_idx = 1;
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}",current_group_idx));
-                    break;
-                case KeyCode.F3:
-                    if (current_group_idx - 1 <= 0 )
-                    {
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    if (Input.GetKey(KeyCode.LeftShift))
+                    {//按下左边的Shift+F2的时候，每按键一次，所选定的资源组序号【减】1
+                        if (current_group_idx - 1 <= 0)
+                        {
+                            //VFAudio.Create("ui-error", null, Vector3.zero, true);
+                            PopupMessage("资源组序号已经是 1 了。无法再减小。", true);
+                            //因为【0】号元素是默认的一个占位元素。所以有效的下标从1开始
+                            break;
+                        }
+                        current_group_idx--;
+                        PopupMessage(string.Format("当前资源组序号：{0}", current_group_idx));
                         break;
                     }
-                    current_group_idx--;
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
-                    break;
-                case KeyCode.F4:
-                    if (current_group_idx+1 >= this.player.planetData.factory.veinGroups.Length)
+                    //按下F2的时候，每按键一次，所选定的资源组序号【加】1
+                    if (current_group_idx + 1 >= this.player.planetData.factory.veinGroups.Length)
                     {
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        //VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        PopupMessage(string.Format("资源组序号已经是最大值 {0} 了。无法再增加。", current_group_idx), true);
                         break;
                     }
                     current_group_idx++;
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    PopupMessage(string.Format("当前资源组序号：{0}", current_group_idx));
+                    break;
+                case KeyCode.F3:
+                    if (current_group_idx <= 0)
+                    {
+                        PopupMessage(string.Format("操作失败。无效的资源组序号。"), true);
+                        break;
+                    }
+                    //改变当前选定的“资源组序号”对应的矿脉的类型。具体类型id由DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组的下标[2]来指定(可以在CE中动态指定)
+                    tmp_val = (int)DSP_Storage_Vault.ce_mod_data_exchange[2];
+                    if (tmp_val <= 0 || tmp_val >= (int)EVeinType.Max)
+                    {
+                        PopupMessage(string.Format("改变当前选定的资源组[{0}]的类型值为[{1}]的操作失败。请先去设置目标矿脉资源为有效值。", current_group_idx, tmp_val), true);
+                        break;
+                    }
+                    else
+                    {
+                        veinType = (EVeinType)(tmp_val);
+                        tmp_str = string.Format("改变当前选定的资源组[{0}]的类型为[{1}]", current_group_idx, veinType );
+                    }
+                    if (SetTypeOfResourceGroup(current_group_idx))
+                    {
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【成功】{0}", tmp_str));
+                    }
+                    else
+                        PopupMessage(string.Format("【失败】{0}", tmp_str), true);
+                    break;
+                case KeyCode.F4:
+                    //在机甲当前所在的位置，创建上述类型的全新矿脉【创建之后需要刷新】
+                    //创建所需的矿脉的类型。具体类型id由DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组的下标[2]来指定(可以在CE中动态指定)
+                    tmp_val = (int)DSP_Storage_Vault.ce_mod_data_exchange[2];
+                    if (tmp_val <= 0 || tmp_val >= (int)EVeinType.Max)
+                    {
+                        PopupMessage(string.Format("创建新的类型值为[{0}]的资源组的操作失败。请先去设置目标矿脉资源为有效值。", tmp_val), true);
+                        break;
+                    }
+                    else
+                    {
+                        veinType = (EVeinType)(tmp_val);
+                        tmp_str = string.Format("创建新的类型值为[{0}]的矿脉资源组的操作", veinType);
+                    }
+                    if (AddResourceGroup())
+                    {
+                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【成功】{0}【需要刷新后使用】", tmp_str));
+                    }
+                    else
+                        PopupMessage(string.Format("【失败】{0}", tmp_str), true);
                     break;
                 case KeyCode.F5:
                     //将当前选定资源组，移动到机甲所在的当前位置
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (current_group_idx <= 0)
+                    {
+                        PopupMessage(string.Format("操作失败。无效的资源组序号。"), true);
+                        break;
+                    }
+                    tmp_str = string.Format("移动当前选定的资源组[{0}]到机甲当前所在位置", current_group_idx);
                     if (MoveResourceGroupToPos(current_group_idx, this.player.position))
+                    {
                         VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【成功】{0}【需要刷新后使用】", tmp_str));
+                    }
                     else
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【失败】{0}", tmp_str), true);
                     break;
                 case KeyCode.F6:
                     //将当前选定资源组的矿产储量翻倍
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    if (current_group_idx <= 0)
+                    {
+                        PopupMessage(string.Format("操作失败。无效的资源组序号。"), true);
+                        break;
+                    }
+                    tmp_str = string.Format("大幅增加当前选定的资源组[{0}]的资源含量", current_group_idx);
                     if (SetAmoutOfResourceGroup(current_group_idx))
+                    {
                         VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【成功】{0}", tmp_str));
+                    }
                     else
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【失败】{0}", tmp_str), true);
                     break;
                 case KeyCode.F7:
-                    //在当前选定资源组中，添加8个同类型的矿脉
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
+                    //在当前选定资源组中，添加8个同类型的矿脉子项
+                    if (current_group_idx <= 0)
+                    {
+                        PopupMessage(string.Format("操作失败。无效的资源组序号。"), true);
+                        break;
+                    }
+                    tmp_str = string.Format("为当前选定的资源组[{0}]添加8个同类型的矿脉子项", current_group_idx);
                     if (AddVeinToResourceGroup(current_group_idx, 8))
+                    {
                         VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【成功】{0}", tmp_str));
+                    }
                     else
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
+                        PopupMessage(string.Format("【失败】{0}", tmp_str), true);
                     break;
                 case KeyCode.F8:
-                    //改变当前选定的矿脉的类型。具体类型id由DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组的下标[2]来指定(可以在CE中动态指定)
-                    Print_Message.Print(string.Format("Current Resource Group ID: {0}", current_group_idx));
-                    if (SetTypeOfResourceGroup(current_group_idx))
-                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    else
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
                     //this.player.factory.DebugEntityGUI();
                    // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
                     //GameMain.history.solarSailLife += 100;
                     break;
                 case KeyCode.F9:
                    // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    if (AddResourceGroup())
-                        VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    else
-                        VFAudio.Create("ui-error", null, Vector3.zero, true);
                     //GameMain.history.solarSailLife += 100;
                     break;
                 case KeyCode.F10:
-                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    UIRealtimeTip.Popup("已加载MOD，需要点选某个矿脉进行启用", false, 1);
                     break;
             }
         }
@@ -318,13 +452,6 @@ namespace DSP_CE_MOD
         {
             //通过DSP_Storage_Vault::ce_mod_data_exchange这个全局静态数组，来和CE进行数据交换。目前暂定分配[2]这一下标对应的项，给本功能使用。接收来自用户输入的矿物类型ID值
             if (groupID <= 0) return false;
-            if (DSP_Storage_Vault.ce_mod_data_exchange[2] == null)
-            {
-                //因为第一次使用时，该项为null，首先要装箱一个int对象进来，然后CE中才可以修改它的值
-                int a = 10000;
-                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)a;
-                return false;
-            }
             VeinProto[] veinProtos = PlanetModelingManager.veinProtos;
             int[] veinModelIndexs = PlanetModelingManager.veinModelIndexs;
             int[] veinModelCounts = PlanetModelingManager.veinModelCounts;
@@ -451,13 +578,15 @@ namespace DSP_CE_MOD
             this.player.planetData.factory.RecalculateAllVeinGroups();
             //this.player.controller.actionPlant.PlantVeinFinally();
         }
-        private int is_hot_key_set = 0;
-        private int current_group_idx = -1;
+        private static int is_hot_key_set = 0;
+        private static int current_group_idx = 0;
+        private static int last_planet_id = 0;
         //public static object[] exchange_addresses = new object[1024*10];
         //这里留下这样的特征，是为了让CE能够通过内存寻找的方式，找到这个数组，然后进行内存数据的交换
         // PlayerAction_Inspect  
         // Token: 0x06000D7A RID: 3450 RVA: 0x000E30A0 File Offset: 0x000E12A0
         //VFAudio.Create("ui-click-0", null, Vector3.zero, true, 2, -1, -1L);
+#if true
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void new_SetInspectee(EObjectType objType, int objId)
         {
@@ -530,7 +659,15 @@ namespace DSP_CE_MOD
             if (objType == EObjectType.Vein)
             {
                 objId = this.player.factory.veinPool[objId].id;
+                var mdidx = this.player.factory.veinPool[objId].modelIndex;
+                ModelProto modelProto = LDB.models.Select(mdidx);
+                if (modelProto != null)
+                {
+                    //VFAudio.Create("ui-error", null, Vector3.zero, true);
+                    DSP_Storage_Vault.ce_mod_data_exchange[1] = modelProto.prefabDesc;
+                }
 
+                /*
                 Print_Message.Print(string.Format("Hot key Enable State...{0}", is_hot_key_set));
                 if (is_hot_key_set == 0)
                 {
@@ -538,9 +675,19 @@ namespace DSP_CE_MOD
                     Print_Message.Print(string.Format("[SUCCESS]Enable Hot key for this mod...."));
                     is_hot_key_set = 1;
                 }
+                */
+                //regist_key_event();
 
-                current_group_idx = this.player.factory.veinPool[objId].groupIndex;
                 var grps = this.player.planetData.factory.veinGroups;
+                current_group_idx = this.player.factory.veinPool[objId].groupIndex;
+                if(current_group_idx<=0||current_group_idx>= grps.Length)
+                {
+                    string str2 = string.Format("当前操作选定了无效的资源组【{0}】",current_group_idx);
+                    current_group_idx = 0;
+                    PopupMessage(str2);
+                    Print_Message.Print(str2);
+                    return;
+                }
                 Print_Message.Print(string.Format("==>Mouse click on Current Resource Group [groupID: {0} type:{1} amount:{2} vein_count:{3}]",
                     current_group_idx, grps[current_group_idx].type, grps[current_group_idx].amount, grps[current_group_idx].count));
             }
@@ -569,5 +716,6 @@ namespace DSP_CE_MOD
         public void old_SetInspectee(EObjectType objType, int objId)
         {
         }
+#endif
     }
 }

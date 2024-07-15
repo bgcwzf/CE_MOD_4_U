@@ -18,7 +18,7 @@ namespace DSP_CE_MOD
      // Token: 0x060005C8 RID: 1480 RVA: 0x00041AF8 File Offset: 0x0003FCF8
         public void new_UpdateNeeds()
         {
-            var storage_max = 100000000;
+            var storage_max = 2000000000;
             StationStore[] obj = this.storage;
             lock (obj)
             {
