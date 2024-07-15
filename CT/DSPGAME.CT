@@ -4,7 +4,7 @@
     <CheatEntry>
       <ID>3</ID>
       <Description>"UTIL基础库加载"</Description>
-      <LastState/>
+      <LastState Activated="1"/>
       <VariableType>Auto Assembler Script</VariableType>
       <AssemblerScript>[ENABLE]
 {$lua}
@@ -15,11 +15,123 @@ if LaunchMonoDataCollector() == 0 then
    error(msg)
    return
 end
+-------------------------------------------------------------------------------------------
+function compile_all_methods()
+  local all_names={
+  "PlayerOrder:.ctor",
+  "PlayerOrder:_trimEnd",
+  "PlayerOrder:Enqueue",
+  "BuildTool_Click:_OnTick",
+  "BuildTool_Path:_OnTick",
+  "BuildTool_Addon:_OnTick",
+  "BuildTool_Inserter:_OnTick",
+  }
+  local all_names_bak={
+  "UIAutoSave:_OnLateUpdate",
+  "UIStorageGrid:_OnUpdate",
+  "StationComponent:UpdateNeeds",
+  "UIStationStorage:OnItemIconMouseDown",
+  "UIDysonEditor:OnViewStarChange",
+  "DysonSphere:CheckLayerRadius",
+  "DysonSphere:CheckSwarmRadius",
+  "DysonSphere:QuerySwarmRadius",
+  "DysonSphere:QueryLayerRadius",
+  "DysonSwarm:AddSolarSail",
+  "Player:GameTick",
+  "GameData:GameTick",
+  "PlayerOrder:.ctor",
+  "PlayerOrder:_trimEnd",
+  "PlayerOrder:Enqueue",
+--  "BuildTool_Click:_OnTick",
+--  "BuildTool_Path:_OnTick",
+--  "BuildTool_Inserter:_OnTick",
+--  "BuildTool_BlueprintPaste:OperatingPrestage",
+--  "BuildTool_Dismantle:DeterminePreviews",
+  "UIDysonBrush_Node:CheckCondition",
+  "UIDysonBrush_Frame:CheckCondition",
+  "UIDysonBrush_Frame:RecalcNearestNode",
+  "UIDysonBrush_Frame:_OnUpdate",
+  "UIDysonBrush_Select:_OnUpdate",
+  "UIDysonBrush_Shell:_OnUpdate",
+  "UIDELayerPanel:get_layerFull",
+  "DysonSphere:AddLayer",
+  "DysonSphere:AddLayerOnId",
+  "DysonSphere:Init",
+  "GalaxyData:.ctor",
+  "CargoTraffic:.ctor:PlanetData", -- 注意，这里第二个冒号后面，跟的是参数的类型，用于区分重载函数
+  "PlayerAction_Inspect:SetInspectee"}
+
+  local j=0
+  print("待编译的函数入口的总数: ",#all_names)
+  for i=1, #all_names do
+    local sp=split(all_names[i],":")
+    if #sp&gt;0 then
+      local mId
+      if sp[3]~=nil then
+         print('查找',all_names[i],"时发现额外签名信息，尝试使用精确枚举法查找。")
+         mId=my_mono_findMethods('Assembly-CSharp',sp[1], sp[2],sp[3])
+        if (mId == nil or mId == 0) and sp[3]~=nil then
+           print('第一次精确枚举法查找',all_names[i],"失败。尝试使用普通方法查找。")
+           mId=mono_findMethod('Assembly-CSharp',sp[1], sp[2])
+        end
+      else
+          mId=mono_findMethod('Assembly-CSharp',sp[1], sp[2])
+      end
+
+      --local mId = mono_findMethod('', 'PlayerStatsManager', 'TakeDamage') ---- This also works
+      if mId ~= nil and mId ~= 0 then
+         local addr = mono_compile_method(mId)
+         print(sp[1]..":"..sp[2].." address: "..string.format("%x",addr).." ,methodId: "..tostring(mId))
+         j = j + 1
+      else
+         print("编译函数",all_names[i],"失败")
+      end
+    end
+    --local mthd={}
+    --mthd["cls"]=sp[1]
+    --mthd["method"]=sp[2]
+    --methods_table[i]=mthd
+    --i = i + 1
+  end
+  print("总计成功完成编译数量: ",j)
+  if j==#all_names then
+     print("已全部成功完成。各项功能可以正常运行")
+     -- active_cheat_item_by_description_name("【LUA】突破分拣器在传送带上最多连接8个的限制",true)
+    return true
+  end
+  print("还有",#all_names-j,"项未成功完成。部分功能可能会不可用或造成游戏主进程崩溃退出。请谨慎使用。")
+  return false
+end
+
 local the_src_file=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\dsp_mod_util.cs]]
 -------------------------------------------------------------------------------------------
 Install_game_mod_from_file(the_src_file,true)
 -- ========================================================================
+local domainname='DSP_CE_MOD'
+local methodId = mono_findMethod(domainname, 'DSP_Storage_Vault', 'get_single_instance')  --find target method
+print(methodId)
+if methodId~=0 then
+  print('before wake up DSP_Storage_Vault')
+  mono_invoke_method(domainname, methodId, {},{})
+  print('after wake up DSP_Storage_Vault')
 
+  -- Find Static Field object array:ce_mod_data_exchange_array
+  local cId = mono_findClass(domainname, 'DSP_Storage_Vault')
+  --print(cId)
+  if cId~=0 and cId~=nil then
+    local st_addr=(mono_class_getStaticFieldAddress(nil, cId))
+    if st_addr~=0 and st_addr~=nil then
+      local the_arr=readPointer(st_addr+8)
+      the_arr=the_arr+0x20 -- C# Array Header Size
+      registerSymbol("ce_mod_data_exchange_array",the_arr)
+    else
+        print('--DSP_Storage_Vault-- Static Field NOT FOUND')
+    end
+  else
+      print('--DSP_Storage_Vault-- class NOT FOUND')
+  end
+
+end
 [DISABLE]
 {$lua}
 --Uninstall_game_mod("A_CLASS:METHOD")
@@ -27,11 +139,79 @@ Install_game_mod_from_file(the_src_file,true)
 </AssemblerScript>
     </CheatEntry>
     <CheatEntry>
-      <ID>2</ID>
-      <Description>"修改物流站存储上限"</Description>
+      <ID>561</ID>
+      <Description>"键盘快捷键响应基础功能模块加载"</Description>
+      <LastState Activated="1"/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{$lua}
+--键盘快捷键响应(F1~F10)功能加载【具体的按键处理函数在各个MOD中自行编写】
+if syntaxcheck then return end
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+local the_src_file2=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\dsp_mod_Keyboard_Event_Loop.cs]]
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file2,false)
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("GameData:Update")
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>581</ID>
+      <Description>"去除右键命令数组最大值为16的限制"</Description>
       <LastState/>
       <VariableType>Auto Assembler Script</VariableType>
       <AssemblerScript>[ENABLE]
+//{$lua}
+/*local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\PlayerOrderQueue\]]
+local the_src_file=src_dir..[[dsp_mod_no_limit_player_orders.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+*/
+PlayerOrder:.ctor+1b: // - BA 10000000           - mov edx,00000010 { 16 }
+db 7f 96 98 00
+PlayerOrder:_trimEnd+19:// - 41 B8 10000000        - mov r8d,00000010 { 16 }
+db 7f 96 98 00
+PlayerOrder:Enqueue+2a:// - 75 34                 - jne PlayerOrder:Enqueue+60
+db eb
+[DISABLE]
+//{$lua}
+/*--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("PlayerOrder:.ctor")
+Uninstall_game_mod("PlayerOrder:_trimEnd")
+Uninstall_game_mod("PlayerOrder:Enqueue")
+*/
+PlayerOrder:.ctor+1b: // - BA 10000000           - mov edx,00000010 { 16 }
+db 10 00 00 00
+PlayerOrder:_trimEnd+19:// - 41 B8 10000000        - mov r8d,00000010 { 16 }
+db 10 00 00 00
+PlayerOrder:Enqueue+2a:// - 75 34                 - jne PlayerOrder:Enqueue+60
+db 75
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>4</ID>
+      <Description>"==================物流相关====================="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>2</ID>
+          <Description>"修改物流站存储上限"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
 {$lua}
 local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\InfiniteStationStorage\]]
 local the_src_file=src_dir..[[dsp_mod_station_storage.cs]]
@@ -50,14 +230,2972 @@ Install_game_mod_from_file(the_src_file2,true)
 Uninstall_game_mod("UIStationStorage:OnItemIconMouseDown")
 Uninstall_game_mod("StationComponent:UpdateNeeds")
 </AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>135</ID>
+          <Description>"物品可叠加数量修改为50万"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+local dsp_max_item_stack_size=9500000 -- set the target value as you wish
+-- r is a global var,will be kept in memory
+--if (inject_point==nil) then -- use the last time 'r' directly
+--print('last result is nil. start to search.')
+local inject_point = AOBScan("E02E000000000000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000E8030000")
+  if (inject_point~=nil) and (inject_point.Count&gt;0) then
+     print(string.format("find table signature point:%s",inject_point[0]))
+     local baseTableAddr=tonumber("0x"..inject_point[0])-0x8*3
+     print(string.format("baseTableAddr:%x",baseTableAddr))
+     local max_cnt=readInteger(baseTableAddr+0x18)
+     print(string.format("max_cnt: %d",max_cnt))
+     local i=0
+     local addr=0
+     for i=0,max_cnt-1 do
+        addr=baseTableAddr+i*4+0x20
+        --print(string.format("%d :max stack count: %d, address:0x%x", i,readInteger(addr),addr))
+        writeInteger(addr,dsp_max_item_stack_size)
+     end
+  end
+--end
+if inject_point~=nil then
+inject_point.destroy()
+inject_point=nil
+end
+[disable]
+{$lua}
+--if (r~=nil) then
+--  for i=0,r.Count-1 do
+--    writeBytes(r[i],0x41,0xff,0xd3)
+--  end
+ -- r.destroy() -- we keep it to use next time
+--end
+</AssemblerScript>
+        </CheatEntry>
+      </CheatEntries>
     </CheatEntry>
     <CheatEntry>
-      <ID>4</ID>
+      <ID>6</ID>
+      <Description>"===============禁用建筑的碰撞检测================="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>5</ID>
+          <Description>"普通建筑"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\DisableBuildingCollide\]]
+local the_src_file=src_dir..[[dsp_mod_disable_collide_building.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("BuildTool_Click:CheckBuildConditions")
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>14</ID>
+          <Description>"传送带"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\DisableBuildingCollide\]]
+local the_src_file=src_dir..[[dsp_mod_disable_collide_belt.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("BuildTool_Path:CheckBuildConditions")
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>13</ID>
+          <Description>"分拣器(一般不启用)"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\DisableBuildingCollide\]]
+local the_src_file=src_dir..[[dsp_mod_disable_collide_inserter.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("BuildTool_Inserter:CheckBuildConditions")
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>579</ID>
+          <Description>"地面防御塔"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\DisableBuildingCollide\]]
+local the_src_file=src_dir..[[dsp_mod_disable_collide_addon.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("BuildTool_Addon:CheckBuildConditions")
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>580</ID>
+          <Description>"建筑蓝图粘贴"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\DisableBuildingCollide\]]
+local the_src_file=src_dir..[[dsp_mod_disable_collide_blueprint.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("BuildTool_BlueprintPaste:CheckBuildConditions")
+Uninstall_game_mod("BuildTool_BlueprintPaste:CheckBuildConditionsPrestage")
+
+</AssemblerScript>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>731</ID>
+      <Description>"【LUA】机甲在太空航行速度调整-MOD加载"</Description>
+      <LastState Activated="1"/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{$lua}
+if syntaxcheck then return end
+if LaunchMonoDataCollector() == 0 then
+   local msg = '未找到MONO环境。后续MOD注入功能无法正常运行'
+   print(msg)
+   error(msg)
+   return
+end
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+active_cheat_item_by_description_name("【LUA】启用脚本：获取当前游戏的各种主要全局对象",true)
+active_cheat_item_by_description_name("键盘快捷键响应基础功能模块加载",true)
+-------------------------------------------------------------------------------------------
+local the_src_file=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\PlayerSailSpeed\dsp_mod_ChangeSailSpeed.cs]]
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true)
+-- ========================================================================
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>732</ID>
+          <Description>"【LUA】绑定/解绑热键-航行速度调整【游戏重进时需要重新绑定】"</Description>
+          <LastState Activated="1"/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+if syntaxcheck then return end
+if LaunchMonoDataCollector() == 0 then
+   local msg = '未找到MONO环境。后续MOD注入功能无法正常运行'
+   print(msg)
+   error(msg)
+   return
+end
+active_cheat_item_by_description_name("【LUA】机甲在太空航行速度调整-MOD加载",true)
+active_cheat_item_by_description_name("【LUA】刷新与重新获取全局对象【加载存档后或到达不同星系时用到】激活快捷键 CTRL+ALT+=",true)
+
+local domainname='DSP_CE_MOD'
+local regist_key_event_methodId = mono_findMethod(domainname, 'PlayerSailSeed_Patch', 'regist_key_event')  --find target method
+--print('regist_key_event_methodId',regist_key_event_methodId)
+if regist_key_event_methodId~=0 then
+  local the_game_data_obj=readPointer(getAddressSafe("dsp_GameMainData"))
+  --print('the_game_data_obj:',the_game_data_obj)
+  mono_invoke_method(domainname, regist_key_event_methodId, the_game_data_obj,{})
+  --print('after call regist_key_event_methodId')
+end
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+local domainname='DSP_CE_MOD'
+local unregist_key_event_methodId = mono_findMethod(domainname, 'PlayerSailSeed_Patch', 'unregist_key_event')  --find target method
+--print('unregist_key_event_methodId',unregist_key_event_methodId)
+if regist_key_event_methodId~=0 then
+  local the_game_data_obj=readPointer(getAddressSafe("dsp_GameMainData"))
+  --print('the_game_data_obj:',the_game_data_obj)
+  mono_invoke_method(domainname, unregist_key_event_methodId, the_game_data_obj,{})
+  --print('after call regist_key_event_methodId')
+end
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>733</ID>
+          <Description>"---》航行速度改变的倍率因数"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*3</Address>
+          <Offsets>
+            <Offset>10</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>735</ID>
+          <Description>"Ctrl+F1键：临时禁用当前太空航速MOD的快捷键响应"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>737</ID>
+          <Description>"Ctrl+F10键：解绑所有MOD的快捷键响应"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>9</ID>
+      <Description>"==矿产资源MOD=绑定热键后回到游戏中，再按下面对应的快捷键执行功能=="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>560</ID>
+          <Description>"【LUA】矿产资源管理-MOD加载"</Description>
+          <LastState Activated="1"/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\RegroupVeins\]]
+local the_src_file=src_dir..[[dsp_mod_RegroupWhenClickVein.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("键盘快捷键响应基础功能模块加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,false) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("PlayerAction_Inspect:SetInspectee")
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>736</ID>
+          <Description>"【LUA】绑定/解绑热键-矿产资源管理【游戏重进时需要重新绑定】"</Description>
+          <LastState Activated="1"/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+
+function get_actionInspect_obj()
+  local player=getAddressSafe("dsp_MainPlayer")
+  if player==0 or player==nil then
+    return nil
+  end
+  local player_controller=readPointer(player+0x38)
+  local actionInspect=readPointer(player_controller+0x108)
+  return actionInspect
+end
+
+if syntaxcheck then return end
+if LaunchMonoDataCollector() == 0 then
+   local msg = '未找到MONO环境。后续MOD注入功能无法正常运行'
+   print(msg)
+   error(msg)
+   return
+end
+active_cheat_item_by_description_name("【LUA】矿产资源管理-MOD加载",true)
+active_cheat_item_by_description_name("【LUA】刷新与重新获取全局对象【加载存档后或到达不同星系时用到】激活快捷键 CTRL+ALT+=",true)
+
+local domainname='DSP_CE_MOD'
+local regist_key_event_methodId = mono_findMethod(domainname, 'RegouopVeins_PlayerAction_Inspect', 'regist_key_event')  --find target method
+--print('regist_key_event_methodId',regist_key_event_methodId)
+if regist_key_event_methodId~=0 then
+  local obj=get_actionInspect_obj()
+  mono_invoke_method(domainname, regist_key_event_methodId, obj,{})
+  --print('after call regist_key_event_methodId')
+end
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+local domainname='DSP_CE_MOD'
+local unregist_key_event_methodId = mono_findMethod(domainname, 'RegouopVeins_PlayerAction_Inspect', 'unregist_key_event')  --find target method
+--print('unregist_key_event_methodId',unregist_key_event_methodId)
+if regist_key_event_methodId~=0 then
+  local obj=get_actionInspect_obj()
+  mono_invoke_method(domainname, unregist_key_event_methodId, obj,{})
+  --print('after call regist_key_event_methodId')
+end
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>574</ID>
+          <Description>"Ctrl+F1键：临时禁用当前MOD的快捷键响应"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>569</ID>
+          <Description>"F1键：将当前星球上所有的矿物聚拢到其分组所在坐标点（不包含石油）"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>734</ID>
+              <Description>"Shift+F1键：重置当前选定的资源组的序号为1"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address/>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>573</ID>
+          <Description>"F2键：每按键一次，所选定的资源组序号【加】1"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>568</ID>
+              <Description>"Shift+F2键：每按键一次，所选定的资源组序号【减】1"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address/>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>729</ID>
+          <Description>"F3键：把当前选定的矿脉组中，修改为下列类型【即时生效】："</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>728</ID>
+              <Description>"---》需要指定的新的矿物类型ID【取值1~15】"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>ce_mod_data_exchange_array+8*2</Address>
+              <Offsets>
+                <Offset>10</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>730</ID>
+          <Description>"F4键：在机甲当前所在的位置，创建上述类型的全新矿脉【创建之后需要刷新】"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>567</ID>
+          <Description>"F5键：将当前选定资源组，移动到机甲所在的当前位置【需要刷新】"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>571</ID>
+          <Description>"F6键：将当前选定资源组的每一个矿产储量设置为50万"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>570</ID>
+          <Description>"F7键：在当前选定资源组中，添加8个同类型的矿脉子项"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address/>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>609</ID>
+      <Description>"【LUA】机甲在太空中的普通飞行速度n倍速"</Description>
+      <LastState/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+active_cheat_item_by_description_name("【LUA】启用脚本：获取当前游戏的各种主要全局对象",true)
+refresh_global_objs()
+if player_uspeed_times_addr==nil then
+  player_uspeed_times_addr=allocateMemory(512)
+  writeFloat(player_uspeed_times_addr,1.0)
+  writeFloat(player_uspeed_times_addr+8,10.0)
+  registerSymbol("player_uspeed_times",player_uspeed_times_addr)
+  registerSymbol("want_speed_up_times",player_uspeed_times_addr+8)
+  --[[
+  registerSymbol("player_uspeed_x",player_uspeed_times_addr+8)
+  registerSymbol("player_uspeed_y",player_uspeed_times_addr+8*2)
+  registerSymbol("player_uspeed_z",player_uspeed_times_addr+8*3)
+  writeDouble(player_uspeed_times_addr+8,1000.0)
+  writeDouble(player_uspeed_times_addr+8*2,1000.0)
+  writeDouble(player_uspeed_times_addr+8*3,1000.0)
+  ]]
+end
+if last_player_uspeed_times_value_str==nil then
+last_player_uspeed_times_value_str=''
+end
+function set_uspeed_times()
+  local times=readFloat(player_uspeed_times_addr)
+  if times==nil then return end
+  local s=string.format("%f",times)
+  if last_player_uspeed_times_value_str==s then return end
+  last_player_uspeed_times_value_str=s
+
+  local game_data = getAddressSafe("dsp_MainPlayer")
+  if game_data == nill then return end
+  local player=game_data --readPointer(game_data)
+  if player == 0 then return end
+  local u_speed=player+0x138 -- this the speed of x
+
+  local x,y,z
+  x=readDouble(u_speed)
+  y=readDouble(u_speed+8)
+  z=readDouble(u_speed+8*2)
+
+  --[[ 因为目的是让xyz三个分速度的合速度增大指定的倍数，并保持速度的方向不变
+  直接将原始速度分量乘以times（即new_x = times * x）会改变速度向量的方向，
+  因为这样仅仅是将每个分量按相同的比例增加，而不是保持它们之间的相对比例关系。
+  当原始速度向量不是沿着一个主轴时，这将导致速度向量方向的改变。
+  因此，为了保持原始速度方向不变，必须首先将速度向量标准化，然后按比例增加其大小。
+  ]]--
+  local real_global_speed=math.sqrt(x*x+y*y+z*z)
+  -- 计算速度向量每个分量相对于其总长度的比例（标准化）
+  x=x/real_global_speed
+  y=y/real_global_speed
+  z=z/real_global_speed
+  --print(u_speed,":",sign,":",times,":end")
+  -- 常数1000是游戏内部的速度固有系数
+  writeDouble(u_speed,1000*times*x)
+  --writeDouble(player_uspeed_times_addr+8,1000*times*x)
+
+  u_speed=u_speed+8
+  writeDouble(u_speed,1000*times*y)
+  --writeDouble(player_uspeed_times_addr+8*2,1000*times*y)
+
+  u_speed=u_speed+8
+  writeDouble(u_speed,1000*times*z)
+  --writeDouble(player_uspeed_times_addr+8*3,1000*times*z)
+
+  --[[
+  -- 之前这种在原有速度上直接加倍的方案太夸张了
+  writeDouble(u_speed,readDouble(u_speed)*times)
+  u_speed=u_speed+8
+  writeDouble(u_speed,readDouble(u_speed)*times)
+  u_speed=u_speed+8
+  writeDouble(u_speed,readDouble(u_speed)*times)
+  ]]
+end
+
+function get_player_uspeed() -- 此函数返回的是一个3元的 turple: x,y,z 出错时返回 nil,nil,nil
+  local game_data = getAddressSafe("dsp_MainPlayer")
+  if game_data == nil or game_data==0 then
+   print("nil dsp_game_main_player")
+   return nil,nil,nil
+  end
+  if game_data == nill then return end
+  local player= game_data -- readPointer(game_data)
+  if player == nil or player==0 then
+   print("nil player")
+   return nil,nil,nil
+  end
+  local u_speed=player+0x138 -- this the speed of x
+
+  --print("player:",player,"addr u_speed:",u_speed)
+  local x,y,z
+  x=readDouble(u_speed)
+  y=readDouble(u_speed+8)
+  z=readDouble(u_speed+8*2)
+  return x,y,z
+end
+
+if not change_uspeed_timer then
+   change_uspeed_timer = createTimer(nil)
+   change_uspeed_timer.OnTimer = function(change_uspeed_timer)
+                   --code here
+                   set_uspeed_times()
+                 end
+   change_uspeed_timer.Interval = 250 --delay
+   change_uspeed_timer.Enabled = true
+else
+    change_uspeed_timer.Enabled = true
+end
+
+
+
+[disable]
+{$lua}
+if player_uspeed_times_addr~=nil then
+--deAlloc(player_uspeed_times_addr)
+end
+--unregisterSymbol("player_uspeed_times")
+--unregisterSymbol("want_speed_up_times")
+--unregisterSymbol("player_uspeed_x")
+--unregisterSymbol("player_uspeed_y")
+--unregisterSymbol("player_uspeed_z")
+--player_uspeed_times_addr=nil
+if change_uspeed_timer~=nil then
+   change_uspeed_timer.Enabled = false
+end
+change_uspeed_timer=nil
+last_player_uspeed_times_value_str=nil
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>631</ID>
+          <Description>"【LUA】游戏进程退出后的重新初始化"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if player_uspeed_times_addr~=nil then
+  deAlloc(player_uspeed_times_addr)
+end
+player_uspeed_times_addr=nil
+[disable]
+{$lua}
+if player_uspeed_times_addr~=nil then
+  deAlloc(player_uspeed_times_addr)
+end
+player_uspeed_times_addr=nil
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>621</ID>
+          <Description>"在此设定当前飞行速度的倍数"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>player_uspeed_times</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>610</ID>
+          <Description>"在此设定下面的热键每次增加的速度的倍数 X"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>want_speed_up_times</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>611</ID>
+          <Description>"【LUA】加速x倍-激活快捷键 CTRL+="</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+refresh_global_objs()
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then
+print("无法获取dsp_game_data对象")
+return
+end
+
+
+if player_uspeed_times_addr==nil then
+  print("激活失败，需要运行前置脚本")
+  error("激活失败，需要运行前置脚本")
+end
+
+   local x,y,z=get_player_uspeed()
+   if x ~= nil then
+      local now_speed=math.sqrt(x*x+y*y+z*z) --求模得到的就是速度
+      --print("now_speed:",now_speed)
+      local now_ratio=now_speed/1000.0 -- 换算出当前的速度倍率，1000是1倍率时标定的默认的航速
+      --print("now_ratio: ",now_ratio)
+      local want_speed_times=readFloat(getAddressSafe("want_speed_up_times"))
+      writeFloat(player_uspeed_times_addr, now_ratio*want_speed_times)
+
+   local self_close_timer = createTimer(nil)
+
+   self_close_timer.OnTimer =
+     function(the_timer)
+       --print("timer start")
+       active_cheat_item_by_description_name("【LUA】加速x倍-激活快捷键 CTRL+=",false)
+       the_timer.Enabled=false
+       the_timer=nil
+       --self_close_timer=nil
+     end
+   self_close_timer.Interval = 250 --delay
+   self_close_timer.Enabled = true
+
+   end
+
+[disable]
+</AssemblerScript>
+          <Hotkeys>
+            <Hotkey>
+              <Action>Toggle Activation</Action>
+              <Keys/>
+              <ID>0</ID>
+            </Hotkey>
+            <Hotkey>
+              <Action>Activate</Action>
+              <Keys>
+                <Key>17</Key>
+                <Key>187</Key>
+              </Keys>
+              <ID>1</ID>
+            </Hotkey>
+          </Hotkeys>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>612</ID>
+          <Description>"【LUA】减速x倍-激活快捷键 CTRL+-"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+refresh_global_objs()
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then
+print("无法获取dsp_game_data对象")
+return
+end
+
+
+if player_uspeed_times_addr==nil then
+  print("激活失败，需要运行前置脚本")
+  error("激活失败，需要运行前置脚本")
+end
+
+   local x,y,z=get_player_uspeed()
+   if x ~= nil then
+      local now_speed=math.sqrt(x*x+y*y+z*z) --求模得到的就是速度
+      --print("now_speed:",now_speed)
+      local now_ratio=now_speed/1000.0 -- 换算出当前的速度倍率，1000是1倍率时标定的默认的航速
+      --print("now_ratio: ",now_ratio)
+      local want_speed_times=readFloat(getAddressSafe("want_speed_up_times"))
+      writeFloat(player_uspeed_times_addr, now_ratio/want_speed_times)
+
+   local self_close_timer = createTimer(nil)
+   self_close_timer.OnTimer =
+     function(the_timer)
+       --print("timer start")
+       active_cheat_item_by_description_name("【LUA】减速x倍-激活快捷键 CTRL+-",false)
+       the_timer.Enabled=false
+       the_timer=nil
+       --self_close_timer=nil
+     end
+   self_close_timer.Interval = 250 --delay
+   self_close_timer.Enabled = true
+   end
+
+[disable]
+</AssemblerScript>
+          <Hotkeys>
+            <Hotkey>
+              <Action>Activate</Action>
+              <Keys>
+                <Key>17</Key>
+                <Key>189</Key>
+              </Keys>
+              <ID>0</ID>
+            </Hotkey>
+          </Hotkeys>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>613</ID>
+          <Description>"【LUA】速度设置为0-激活快捷键 CTRL+0"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then
+print("无法获取dsp_game_data对象")
+return
+end
+
+
+if player_uspeed_times_addr==nil then
+  error("激活失败，需要运行前置脚本")
+end
+
+  local player=readPointer(getAddressSafe("dsp_MainPlayer"))
+  if player == 0 or player==nil then
+    print("无法获取dsp_game_main_player对象")
+    return
+  end
+  local u_speed=player+0xf8 -- this the speed of x
+
+  writeDouble(u_speed,0)
+  writeDouble(u_speed+8,0)
+  writeDouble(u_speed+8*2,0)
+  writeFloat(player_uspeed_times_addr,0)
+
+   local self_close_timer = createTimer(nil)
+   self_close_timer.OnTimer =
+     function(the_timer)
+       --print("timer start")
+       active_cheat_item_by_description_name("【LUA】速度设置为0-激活快捷键 CTRL+0",false)
+       the_timer.Enabled=false
+       the_timer=nil
+       --self_close_timer=nil
+     end
+   self_close_timer.Interval = 250 --delay
+   self_close_timer.Enabled = true
+[disable]
+</AssemblerScript>
+          <Hotkeys>
+            <Hotkey>
+              <Action>Activate</Action>
+              <Keys>
+                <Key>17</Key>
+                <Key>48</Key>
+              </Keys>
+              <ID>0</ID>
+            </Hotkey>
+          </Hotkeys>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>614</ID>
+          <Description>"【LUA】机甲在太空中逐步加速的过程与效果-激活快捷键CTRL+]"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+--active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then return end
+
+
+if player_uspeed_times_addr==nil then
+  error("激活失败，需要运行前置脚本")
+end
+
+
+if not slow_increase_change_uspeed_timer then
+   local x,y,z=get_player_uspeed()
+   if x ~= nil then
+      local sign
+      sign=math.sqrt(x*x+y*y+z*z)
+      --[[x=x/sign
+      y=y/sign
+      z=z/sign
+      x=math.abs(x)]]
+      writeFloat(player_uspeed_times_addr,sign/1000.0) -- 换算出当前的速度倍率
+   end
+   slow_increase_change_uspeed_timer = createTimer(nil)
+   slow_increase_change_uspeed_timer.OnTimer = function(slow_increase_change_uspeed_timer)
+                   --code here
+                   local delta=2
+                   --print("timer: speed delta=",delta)
+                   writeFloat(player_uspeed_times_addr,readFloat(player_uspeed_times_addr)+delta)
+                   delta=readFloat(player_uspeed_times_addr)
+                   if delta&gt;60.0 then
+                     active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果",false)
+                     active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果2",true)
+                   end
+                 end
+   slow_increase_change_uspeed_timer.Interval = 250 --delay
+   slow_increase_change_uspeed_timer.Enabled = true
+else
+    slow_increase_change_uspeed_timer.Enabled = true
+end
+
+
+
+[disable]
+{$lua}
+if (slow_increase_change_uspeed_timer) then
+   slow_increase_change_uspeed_timer.Enabled = false
+   slow_increase_change_uspeed_timer.destroy()
+end
+slow_increase_change_uspeed_timer=nil
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>615</ID>
+          <Description>"【LUA】机甲在太空中逐步加速的过程与效果2"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+--active_cheat_item_by_description_name("【AA】启用脚本：获取当前星系对象(StarData)与主GameData对象",true)
+
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then return end
+
+active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+
+if player_uspeed_times_addr==nil then
+  error("激活失败，需要运行前置脚本")
+end
+
+
+if not slow_increase_change_uspeed_timer then
+   local x,y,z=get_player_uspeed()
+   if x ~= nil then
+      local sign
+      sign=math.sqrt(x*x+y*y+z*z)
+      --[[x=x/sign
+      y=y/sign
+      z=z/sign
+      x=math.abs(x)]]
+      writeFloat(player_uspeed_times_addr,sign/1000.0) -- 换算出当前的速度倍率
+   end
+   slow_increase_change_uspeed_timer = createTimer(nil)
+   slow_increase_change_uspeed_timer.OnTimer = function(slow_increase_change_uspeed_timer)
+                   --code here
+                   local delta=82
+                   --print("timer: speed delta=",delta)
+                   writeFloat(player_uspeed_times_addr,readFloat(player_uspeed_times_addr)+delta)
+                   delta=readFloat(player_uspeed_times_addr)
+                   if delta&gt;3500.0 then
+                     active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果2",false)
+                     active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果3",true)
+                   end
+                 end
+   slow_increase_change_uspeed_timer.Interval = 250 --delay
+   slow_increase_change_uspeed_timer.Enabled = true
+else
+    slow_increase_change_uspeed_timer.Enabled = true
+end
+
+
+
+[disable]
+{$lua}
+if (slow_increase_change_uspeed_timer) then
+   slow_increase_change_uspeed_timer.Enabled = false
+   slow_increase_change_uspeed_timer.destroy()
+end
+slow_increase_change_uspeed_timer=nil
+
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>616</ID>
+          <Description>"【LUA】机甲在太空中逐步加速的过程与效果3"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+
+--active_cheat_item_by_description_name("【AA】启用脚本：获取当前星系对象(StarData)与主GameData对象",true)
+
+if readPointer(getAddressSafe("dsp_GameMainData"))==nil then return end
+
+active_cheat_item_by_description_name("【LUA】机甲在太空中的普通飞行速度n倍速",true)
+
+if player_uspeed_times_addr==nil then
+  error("激活失败，需要运行前置脚本")
+end
+
+
+if not slow_increase_change_uspeed_timer then
+   local x,y,z=get_player_uspeed()
+   if x ~= nil then
+      local sign
+      sign=math.sqrt(x*x+y*y+z*z)
+      --[[x=x/sign
+      y=y/sign
+      z=z/sign
+      x=math.abs(x)]]
+      writeFloat(player_uspeed_times_addr,sign/1000.0) -- 换算出当前的速度倍率
+   end
+   slow_increase_change_uspeed_timer = createTimer(nil)
+   slow_increase_change_uspeed_timer.OnTimer = function(slow_increase_change_uspeed_timer)
+                   --code here
+                   local delta=182
+                   --print("timer: speed delta=",delta)
+                   writeFloat(player_uspeed_times_addr,readFloat(player_uspeed_times_addr)+delta)
+                   delta=readFloat(player_uspeed_times_addr)
+                   if delta&gt;14000.0 then
+                     active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果3",false)
+                     --active_cheat_item_by_description_name("【LUA】机甲在太空中逐步加速的过程与效果2",true)
+                   end
+                 end
+   slow_increase_change_uspeed_timer.Interval = 250 --delay
+   slow_increase_change_uspeed_timer.Enabled = true
+else
+    slow_increase_change_uspeed_timer.Enabled = true
+end
+
+
+
+[disable]
+{$lua}
+if (slow_increase_change_uspeed_timer) then
+   slow_increase_change_uspeed_timer.Enabled = false
+   slow_increase_change_uspeed_timer.destroy()
+end
+slow_increase_change_uspeed_timer=nil
+
+</AssemblerScript>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>11</ID>
+      <Description>"============================================"</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>315</ID>
+          <Description>"机甲本地坐标系(星球表面)的X坐标"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x130</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>565</ID>
+          <Description>"机甲在太空中的普通飞行速度X【是相对于整个宇宙的速度】"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x138</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>316</ID>
+          <Description>"机甲在太空中的普通飞行速度Y【落在地面上的时候也是有速度的】"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x140</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>317</ID>
+          <Description>"机甲在太空中的普通飞行速度Z"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x148</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>623</ID>
+          <Description>"机甲X坐标"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x100</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>624</ID>
+          <Description>"机甲Y坐标"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x108</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>625</ID>
+          <Description>"机甲Z坐标"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Double</VariableType>
+          <Address>dsp_MainPlayer+0x110</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>626</ID>
+          <Description>"机甲X旋转角度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_MainPlayer+0x118</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>627</ID>
+          <Description>"机甲Y旋转角度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_MainPlayer+0x11c</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>628</ID>
+          <Description>"机甲Z旋转角度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_MainPlayer+0x120</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>629</ID>
+          <Description>"机甲W旋转角度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_MainPlayer+0x124</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>693</ID>
+      <Description>"WeaponRange-无效，通过修改prefab_desc来修改武器射程"</Description>
+      <LastState/>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\WeaponPatch\]]
+local the_src_file=src_dir..[[dsp_mod_turret_attack_range.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("TurretComponent:CheckEnemyIsInAttackRange")
+
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>698</ID>
+      <Description>"===MOD与CE进行数据交换的数组 ce_mod_data_exchange_array==="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>699</ID>
+          <Description>"[0]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>711</ID>
+          <Description>"[1]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>710</ID>
+          <Description>"[2]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*2</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>712</ID>
+          <Description>"[3]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*3</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>713</ID>
+          <Description>"[4]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*4</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>715</ID>
+          <Description>"[5]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*5</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>716</ID>
+          <Description>"[6]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*6</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>714</ID>
+          <Description>"[7]"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8*7</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>717</ID>
+          <Description>"PrefabDesc(ce_mod_data_exchange_array[1])物品基本配置装配信息"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>ce_mod_data_exchange_array+8</Address>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>718</ID>
+              <Description>"turretVSCaps"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>5eb</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>724</ID>
+              <Description>"turretROF"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>5f8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>723</ID>
+              <Description>"turretMinAttackRange"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>608</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>721</ID>
+              <Description>"turretMaxAttackRange"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>60c</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>720</ID>
+              <Description>"turretSpaceAttackRange"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>610</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>719</ID>
+              <Description>"turretPitchUpMax"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>614</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>722</ID>
+              <Description>"turretPitchDownMax"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>618</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>725</ID>
+              <Description>"isBeacon"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Byte</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>648</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>726</ID>
+              <Description>"beaconSignalRadius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>64c</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>727</ID>
+              <Description>"beaconSpaceSignalRange"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>ce_mod_data_exchange_array+8</Address>
+              <Offsets>
+                <Offset>654</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>12</ID>
+      <Description>"==============当前游戏的各种主要全局对象============="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>439</ID>
+          <Description>"【LUA】启用脚本：获取当前游戏的各种主要全局对象"</Description>
+          <LastState Activated="1"/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>{ Game   : DSPGAME.exe
+  Version:
+  Date   : 2022-01-21
+  Author : tyrant
+
+  This script does blah blah blah
+}
+/*
+获取某个类的静态成员变量的方法：
+local cid=mono_findClass('', 'GameMain')
+local dom_id=mono_enumDomains()[1]
+local stfa=mono_class_getStaticFieldAddress(dom_id, cid)
+print(string.format('class id:%x', cid))
+print(string.format('dom id:%x', dom_id))
+print(string.format('stfa:%x', stfa))
+*/
+//// --------------------  Main Section  ---------------------
+// The main section is ran when enabling and disabling.
+[ENABLE]
+{$lua}
+if syntaxcheck then return end
+if LaunchMonoDataCollector() == 0 then
+   local msg = '未找到MONO环境。后续MOD注入功能无法正常运行'
+   print(msg)
+   error(msg)
+   return
+end
+-------------------------------------------------------------------------------------------
+function find_global_static_obj_addr(func_name,symbol_name_to_reg)
+--[[ func_name支持以下几种函数名称（即仅支持有限的几种静态对象）：
+GameMain:get_instance
+GameCamera:get_instance
+GameCamera:get_main
+这里返回的是真实对象的基址。
+【存疑：对于这个类对象来说，它自身的成员变量存在于这个函数的返回值，所指向的8字节整数所代表的另外一个内存地址中，即[ret_val]才是真实的成员变量内存区域起点】
+]]--
+  local ptr=nil
+  ptr=getAddressSafe(func_name)
+--[[
+原理：根据函数名，得到了具体的函数地址ptr。此时可以在反汇编窗口，查看这个函数的起始点的汇编代码。
+通常这些获取全局变量的函数的起始部分，是下面这样的格式：
+GameMain:get_instance - 48 83 EC 08           - sub rsp,08 { 8 }  【上面得到的ptr实际是这一行的地址】
+GameMain:get_instance+4- 48 B8 004D00EAE1010000 - mov rax,1E3507A9F30
+GameMain:get_instance+e - 48 8B 00              - mov rax,[rax]
+然后，通过对上面的ptr变量，进行加减法的偏移量计算，得到了“mov rax,1E3507A9F30”这局代码中的这个常数所在目标地址
+再使用readPointer(ptr)来读取这个目标地址，即可得到静态对象的地址。
+]]--
+  if ptr==nil or ptr==0 then
+    print("为全局对象",symbol_name_to_reg,"寻找目标函数地址",func_name,"失败")
+    return nil
+  else
+    ptr=ptr+6  --这个偏移量是固定的，所以这里也是就是为什么只支持那几种函数名称的原因
+  end
+
+  ptr=readPointer(ptr)  -- 对应着上面的  mov rax,[rax]
+--print("function "..func_name.." static main gameobj after readpointer is "..ptr)
+  if ptr==nil or ptr==0 then
+    print("为全局对象",symbol_name_to_reg,"在目标函数",func_name,"地址中读取对象地址失败")
+    return nil
+  else
+    if symbol_name_to_reg~=nil then
+       registerSymbol(symbol_name_to_reg,ptr)
+    end
+  end
+  return ptr
+end
+
+function getGameMainObj()
+  --得到的是 GameMain 对象
+  local ptr=find_global_static_obj_addr("GameMain:get_instance","dsp_GameMain")
+  if ptr~=nil then
+     ptr=ptr+0x18  -- 当前版本下，静态成员变量“GameMain.data”就只需要+0x18的偏移量即可
+      registerSymbol("dsp_GameMainData",ptr)
+  end
+  return ptr
+end
+function getObjFromGameMainData(offset_value)
+    --[[用于从dsp_GameMainData这个主要的核心对象中，取出各种关键的成员变量。只需要传入该成员变量在整个变量中的偏移量即可。
+    例如：想得到的是 GalaxyData 对象，
+GameMain:get_galaxy - 48 83 EC 08           - sub rsp,08 { 8 }
+GameMain:get_galaxy+1a- 48 B8 184D7F2BB2010000 - mov rax,dsp_GameMainData { (1B3EADE7D10) }
+GameMain:get_galaxy+24- 48 8B 00              - mov rax,[rax]
+GameMain:get_galaxy+27- 48 8B 40 38           - mov rax,[rax+offset_value]
+]]
+    local gm = getAddressSafe("dsp_GameMainData")
+    if gm == nil then
+        return nil
+    end
+    local ptr = readPointer(gm) --对应着  mov rax,[rax] ，也是由上方的【存疑】所指明的取值
+    if ptr ~= nil and ptr&gt;0 then
+        ptr = ptr + offset_value
+    --print(ptr,"  ",offset_value," ret=",readPointer(ptr))
+        return readPointer(ptr)
+    end
+    return ptr
+end
+
+
+function getGameCameraObj()
+    --得到的是 GameCamera 对象
+    return find_global_static_obj_addr("GameCamera:get_instance", "dsp_GameCamera")
+end
+
+function getUnityCameraObj()
+    --得到的是 GameCamera里面的具体的UnityEngine.Camera类型的 对象
+    return find_global_static_obj_addr("GameCamera:get_main", "dsp_UnityCamera")
+end
+
+function getLocalStarObj()
+    --[[得到的是 StarData 对象，
+GameMain:get_galaxy - 48 83 EC 08           - sub rsp,08 { 8 }
+GameMain:get_galaxy+1a- 48 B8 184D7F2BB2010000 - mov rax,dsp_GameMainData { (1B3EADE7D10) }
+GameMain:get_galaxy+24- 48 8B 00              - mov rax,[rax]
+GameMain:get_galaxy+27- 48 8B 40 38           - mov rax,[rax+A0]
+]]
+    local ptr = getObjFromGameMainData(0xA0) --对应着  mov rax,[rax] ，也是由上方的【存疑】所指明的取值
+    if ptr ~= nil then
+        registerSymbol("dsp_LocalStarData", ptr) --在使用时，直接使用，这个symbol本身就是对象的起始内存地址
+    end
+    return ptr
+end
+function getLocalPlanetObj()
+    --[[得到的是 PlanetData 对象，
+GameMain:get_galaxy - 48 83 EC 08           - sub rsp,08 { 8 }
+GameMain:get_galaxy+1a- 48 B8 184D7F2BB2010000 - mov rax,dsp_GameMainData { (1B3EADE7D10) }
+GameMain:get_galaxy+24- 48 8B 00              - mov rax,[rax]
+GameMain:get_galaxy+27- 48 8B 40 38           - mov rax,[rax+A8]
+]]
+    local ptr = getObjFromGameMainData(0xA8)
+    if ptr ~= nil then
+        registerSymbol("dsp_LocalPlanetData", ptr) --在使用时，直接使用，这个symbol本身就是对象的起始内存地址
+    end
+    return ptr
+end
+
+function getMainPlayerObj()
+    --[[得到的是 Player 对象，
+GameMain:get_galaxy - 48 83 EC 08           - sub rsp,08 { 8 }
+GameMain:get_galaxy+1a- 48 B8 184D7F2BB2010000 - mov rax,dsp_GameMainData { (1B3EADE7D10) }
+GameMain:get_galaxy+24- 48 8B 00              - mov rax,[rax]
+GameMain:get_galaxy+27- 48 8B 40 38           - mov rax,[rax+B0]
+]]
+    local ptr = getObjFromGameMainData(0xB0)
+    if ptr ~= nil then
+        registerSymbol("dsp_MainPlayer", ptr) --在使用时，直接使用，这个symbol本身就是对象的起始内存地址
+    end
+    return ptr
+end
+
+function getGalaxyObj()
+    --[[得到的是 GalaxyData 对象，
+GameMain:get_galaxy - 48 83 EC 08           - sub rsp,08 { 8 }
+GameMain:get_galaxy+1a- 48 B8 184D7F2BB2010000 - mov rax,dsp_GameMainData { (1B3EADE7D10) }
+GameMain:get_galaxy+24- 48 8B 00              - mov rax,[rax]
+GameMain:get_galaxy+27- 48 8B 40 38           - mov rax,[rax+38]
+]]
+    local ptr = getObjFromGameMainData(0x38)
+    if ptr ~= nil then
+        registerSymbol("dsp_GalaxyData", ptr) --在使用时，直接使用，这个symbol本身就是对象的起始内存地址
+    end
+    return ptr
+end
+
+function get_star_id(star_obj)
+    local id_addr=star_obj+0x50
+    return readInteger(id_addr)
+end
+
+function get_star_id_of_sphere_obj(sphere_obj)
+    local star_obj=sphere_obj+0x18
+    star_obj=readPointer(star_obj)
+    return get_star_id(star_obj)
+  end
+function get_stars_count()
+    local gamedata=readPointer(getAddressSafe("dsp_GameMainData"))
+    local galaxy=gamedata+0x38
+    local galaxydata=readPointer(galaxy)
+    galaxydata=galaxydata+0x3c
+    return readInteger(galaxydata)
+end
+function get_spheres_array_of_game_data()
+    local spheres_arr=readPointer(getAddressSafe("dsp_GameMainData"))
+    spheres_arr=spheres_arr+0x78
+    spheres_arr=readPointer(spheres_arr)
+    spheres_arr=spheres_arr+0x20 -- C# Array Header Size
+    registerSymbol("dsp_spheres_array",spheres_arr)
+    return spheres_arr
+end
+
+function find_current_sphere(cur_star_obj)
+    if cur_star_obj == nil then return end
+    local cur_star_id=get_star_id(cur_star_obj)
+    local spheres_arr=get_spheres_array_of_game_data()
+    local all_stars_count=get_stars_count()
+    local i=0
+    local sid=0
+    local item=nil
+    while i&lt;all_stars_count do
+      item=readPointer(spheres_arr+i*8)
+      if item~=nil and item ~=0 then
+        sid=get_star_id_of_sphere_obj(item)
+        if sid==cur_star_id then
+            registerSymbol("current_sphere",item)
+            local layer_sorted_table=readPointer(item+0x28)+0x20
+            registerSymbol("current_layer_table",layer_sorted_table)
+
+            local layer_table_id_based=readPointer(item+0x30)+0x20
+            registerSymbol("current_layer_table_id_based",layer_table_id_based)
+          return item
+        end
+      end
+      i=i+1
+    end
+    return nil
+  end
+function refresh_global_objs()
+  getGameMainObj()
+  getGameCameraObj()
+  getUnityCameraObj()
+  getLocalStarObj()
+  getLocalPlanetObj()
+  getMainPlayerObj()
+  getGalaxyObj()
+  find_current_sphere(getAddressSafe("dsp_LocalStarData"))
+end
+[DISABLE]
+{$lua}
+if g_mem_for_pointers ~= nil then
+local m=g_mem_for_pointers
+g_mem_for_pointers=nil
+deAlloc(m)
+end
+</AssemblerScript>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>479</ID>
+              <Description>"【LUA】刷新与重新获取全局对象【加载存档后或到达不同星系时用到】激活快捷键 CTRL+ALT+="</Description>
+              <LastState/>
+              <VariableType>Auto Assembler Script</VariableType>
+              <AssemblerScript>[enable]
+{$lua}
+if syntaxcheck then return end
+active_cheat_item_by_description_name("【LUA】启用脚本：获取当前游戏的各种主要全局对象",true)
+refresh_global_objs()
+
+local self_close_timer = createTimer(nil)
+
+   self_close_timer.OnTimer =
+     function(the_timer)
+       --print("timer start")
+       active_cheat_item_by_description_name("【LUA】刷新与重新获取全局对象【加载存档后或到达不同星系时用到】激活快捷键 CTRL+ALT+=",false)
+       the_timer.Enabled=false
+       the_timer=nil
+       --self_close_timer=nil
+     end
+   self_close_timer.Interval = 250 --delay
+   self_close_timer.Enabled = true
+[disable]
+</AssemblerScript>
+              <Hotkeys>
+                <Hotkey>
+                  <Action>Activate</Action>
+                  <Keys>
+                    <Key>17</Key>
+                    <Key>18</Key>
+                    <Key>187</Key>
+                  </Keys>
+                  <ID>0</ID>
+                </Hotkey>
+              </Hotkeys>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>455</ID>
+              <Description>"--dsp_GameMain--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_GameMain</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>620</ID>
+              <Description>"--dsp_GameMainData--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_GameMainData</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>558</ID>
+              <Description>"--dsp_GameCamera--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_GameCamera</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>557</ID>
+              <Description>"--dsp_UnityCamera--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_UnityCamera</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>554</ID>
+              <Description>"--dsp_GalaxyData--符号的地址列即为对象--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_GalaxyData</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>559</ID>
+              <Description>"--dsp_MainPlayer--符号的地址列即为对象--"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_MainPlayer</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>552</ID>
+              <Description>"--dsp_LocalStarData--符号的地址列即为对象--右方向键展开"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_LocalStarData</Address>
+              <CheatEntries>
+                <CheatEntry>
+                  <ID>682</ID>
+                  <Description>"star.id"</Description>
+                  <ShowAsHex>1</ShowAsHex>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>dsp_LocalStarData+0x50</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>684</ID>
+                  <Description>"star.name"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>String</VariableType>
+                  <Length>30</Length>
+                  <Unicode>1</Unicode>
+                  <CodePage>0</CodePage>
+                  <ZeroTerminate>1</ZeroTerminate>
+                  <Address>dsp_LocalStarData+0x18</Address>
+                  <Offsets>
+                    <Offset>14</Offset>
+                  </Offsets>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>683</ID>
+                  <Description>"planetCount"</Description>
+                  <ShowAsHex>1</ShowAsHex>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>dsp_LocalStarData+0xd4</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>692</ID>
+                  <Description>"dysonRadius-戴森球编辑器里的最大视野倍率-需要先设置好-再进编辑界面"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>Float</VariableType>
+                  <Address>dsp_LocalStarData+0xbc</Address>
+                </CheatEntry>
+              </CheatEntries>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>458</ID>
+              <Description>"--dsp_LocalPlanetData--符号的地址列即为对象--右方向键展开"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_LocalPlanetData</Address>
+              <CheatEntries>
+                <CheatEntry>
+                  <ID>689</ID>
+                  <Description>"planet.id"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>4 Bytes</VariableType>
+                  <Address>dsp_LocalPlanetData+150</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>690</ID>
+                  <Description>"planet.name"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>String</VariableType>
+                  <Length>30</Length>
+                  <Unicode>1</Unicode>
+                  <CodePage>0</CodePage>
+                  <ZeroTerminate>1</ZeroTerminate>
+                  <Address>dsp_LocalPlanetData+0x20</Address>
+                  <Offsets>
+                    <Offset>14</Offset>
+                  </Offsets>
+                </CheatEntry>
+              </CheatEntries>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>553</ID>
+              <Description>"-----------dsp_game_desc------------------"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>dsp_game_desc</Address>
+              <CheatEntries>
+                <CheatEntry>
+                  <ID>456</ID>
+                  <Description>"-----------dsp_game_data------------------"</Description>
+                  <ShowAsHex>1</ShowAsHex>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>8 Bytes</VariableType>
+                  <Address>dsp_game_data</Address>
+                </CheatEntry>
+              </CheatEntries>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>685</ID>
+              <Description>"--current_sphere--符号的地址列即为对象--右方向键展开"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>current_sphere</Address>
+              <CheatEntries>
+                <CheatEntry>
+                  <ID>555</ID>
+                  <Description>"layersSorted"</Description>
+                  <ShowAsHex>1</ShowAsHex>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>8 Bytes</VariableType>
+                  <Address>current_layer_table</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>686</ID>
+                  <Description>"layersIdBased"</Description>
+                  <ShowAsHex>1</ShowAsHex>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>8 Bytes</VariableType>
+                  <Address>current_layer_table_id_based</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>551</ID>
+                  <Description>"minOrbitRadius"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>Float</VariableType>
+                  <Address>current_sphere+0x94</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>687</ID>
+                  <Description>"maxOrbitRadius"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>Float</VariableType>
+                  <Address>current_sphere+0x98</Address>
+                </CheatEntry>
+                <CheatEntry>
+                  <ID>688</ID>
+                  <Description>"avoidOrbitRadius"</Description>
+                  <ShowAsSigned>0</ShowAsSigned>
+                  <VariableType>Float</VariableType>
+                  <Address>current_sphere+0x9c</Address>
+                </CheatEntry>
+              </CheatEntries>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>556</ID>
+              <Description>"--------------==========------------------"</Description>
+              <ShowAsHex>1</ShowAsHex>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>8 Bytes</VariableType>
+              <Address>current_layer_table_id_based</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>576</ID>
+      <Description>"================开局50倍恒星数量==================="</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>577</ID>
+          <Description>"主界面菜单中启用--开局50倍恒星数量"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\NewGame_MoreStars\]]
+local the_src_file=src_dir..[[dsp_mod_NewGame_StarCount.cs]]
+local the_src_file2=src_dir..[[dsp_mod_PlanetGen.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+--Install_game_mod_from_file(the_src_file2,true)
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("UIGalaxySelect:OnStarCountSliderValueChange")
+Uninstall_game_mod("UIGalaxySelect:UpdateUIDisplay")
+--Uninstall_game_mod("PlanetGen:CreatePlanet")
+</AssemblerScript>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>578</ID>
+          <Description>"主界面菜单中启用--开局每颗恒星2倍行星数量"</Description>
+          <LastState/>
+          <VariableType>Auto Assembler Script</VariableType>
+          <AssemblerScript>[ENABLE]
+{$lua}
+local src_dir=[[C:\CE_MOD_4_U\DysonSphereProgram_MODs\NewGame_MoreStars\]]
+local the_src_file=src_dir..[[dsp_mod_StarGen.cs]]
+--local the_src_file2=src_dir..[[dsp_mod_PlanetGen.cs]]
+-------------------------------------------------------------------------------------------
+active_cheat_item_by_description_name("UTIL基础库加载",true)
+-------------------------------------------------------------------------------------------
+Install_game_mod_from_file(the_src_file,true) --第二个参数为true，意思是这个文件是UTF8编码的。 实际上最好是提供GBK编码格式的C#源代码文件
+--Install_game_mod_from_file(the_src_file2,true)
+-- ========================================================================
+
+[DISABLE]
+{$lua}
+--Uninstall_game_mod("A_CLASS:METHOD")
+--Uninstall_all_game_mod()
+Uninstall_game_mod("StarGen:CreateStarPlanets")
+</AssemblerScript>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>10</ID>
+      <Description>"============================================"</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>477</ID>
+      <Description>"-----------当前所在星系的数据-------[可按键盘的右方向键展开]"</Description>
+      <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>String</VariableType>
+      <Length>10</Length>
+      <Unicode>0</Unicode>
+      <CodePage>0</CodePage>
+      <ZeroTerminate>1</ZeroTerminate>
+      <Address>newmem_sep_buf</Address>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>285</ID>
+          <Description>"当前星系名称"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>String</VariableType>
+          <Length>30</Length>
+          <Unicode>1</Unicode>
+          <CodePage>0</CodePage>
+          <ZeroTerminate>1</ZeroTerminate>
+          <Address>dsp_LocalStarData+18</Address>
+          <Offsets>
+            <Offset>14</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>327</ID>
+          <Description>"当前恒星半径系数(0.9R)"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_LocalStarData+0ac</Address>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>390</ID>
+              <Description>"acdiskRadius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+0b0</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>391</ID>
+              <Description>"habitableRadius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+b4</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>392</ID>
+              <Description>"lightBalanceRadius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+b8</Address>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>393</ID>
+              <Description>"戴森球编辑器里的最大视野倍率-DysonRadius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+0bc</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>335</ID>
+          <Description>"当前恒星轨道放大系数"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_LocalStarData+0c0</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>331</ID>
+          <Description>"当前恒星质量"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_LocalStarData+88</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>332</ID>
+          <Description>"当前恒星年龄"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>dsp_LocalStarData+090</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>388</ID>
+          <Description>"当前恒星温度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>current_star_data</Address>
+          <Offsets>
+            <Offset>90</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>389</ID>
+          <Description>"当前恒星发光度"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>current_star_data</Address>
+          <Offsets>
+            <Offset>0a0</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>336</ID>
+          <Description>"当前恒星颜色"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>Float</VariableType>
+          <Address>current_star_data</Address>
+          <Offsets>
+            <Offset>09c</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>334</ID>
+          <Description>"当前恒星类型"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>current_star_data</Address>
+          <Offsets>
+            <Offset>08c</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>333</ID>
+          <Description>"当前恒星拥有的行星个数"</Description>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>dsp_LocalStarData+d4</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>328</ID>
+          <Description>"当前恒星的行星表"</Description>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>dsp_LocalStarData+028</Address>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>343</ID>
+          <Description>"第一颗行星[可按键盘的右方向键展开]"</Description>
+          <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>dsp_LocalStarData+28</Address>
+          <Offsets>
+            <Offset>20</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>344</ID>
+              <Description>"第一颗行星名称【从下向上，第一个20是相对于Array对象的固定偏移，再向上才是成员变量】"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>String</VariableType>
+              <Length>20</Length>
+              <Unicode>1</Unicode>
+              <CodePage>0</CodePage>
+              <ZeroTerminate>1</ZeroTerminate>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>14</Offset>
+                <Offset>20</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>394</ID>
+              <Description>"第一颗行星半径_radius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>18c</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>400</ID>
+              <Description>"第一颗行星_habitableBias"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>198</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>401</ID>
+              <Description>"第一颗行星_waterHeight"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>1c0</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>395</ID>
+              <Description>"第一颗行星尺寸倍率_scale"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>190</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>345</ID>
+              <Description>"第一颗行星轨道半径-orbitRadius，是一个系数，基准距离是1AU"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>164</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>346</ID>
+              <Description>"第一颗行星公转周期orbitPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>170</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>347</ID>
+              <Description>"第一颗行星公转_orbitPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>178</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>348</ID>
+              <Description>"第一颗行星自转周期rotationPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>180</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>349</ID>
+              <Description>"第一颗行星自转_rotationPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>188</Offset>
+                <Offset>20</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>329</ID>
+          <Description>"第二颗行星[可按键盘的右方向键展开]"</Description>
+          <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>dsp_LocalStarData+28</Address>
+          <Offsets>
+            <Offset>28</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>652</ID>
+              <Description>"第二颗行星名称【从下向上，第一个20是相对于Array对象的固定偏移，再向上才是成员变量】"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>String</VariableType>
+              <Length>20</Length>
+              <Unicode>1</Unicode>
+              <CodePage>0</CodePage>
+              <ZeroTerminate>1</ZeroTerminate>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>14</Offset>
+                <Offset>20</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>653</ID>
+              <Description>"第二颗行星半径_radius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>18c</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>654</ID>
+              <Description>"第二颗行星_habitableBias"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>198</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>655</ID>
+              <Description>"第二颗行星_waterHeight"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>1c0</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>656</ID>
+              <Description>"第二颗行星尺寸倍率_scale"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>190</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>657</ID>
+              <Description>"第二颗行星轨道半径-orbitRadius，是一个系数，基准距离是1AU"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>164</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>658</ID>
+              <Description>"第二颗行星公转周期orbitPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>170</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>659</ID>
+              <Description>"第二颗行星公转_orbitPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>178</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>660</ID>
+              <Description>"第二颗行星自转周期rotationPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>180</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>661</ID>
+              <Description>"第二颗行星自转_rotationPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>188</Offset>
+                <Offset>28</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>357</ID>
+          <Description>"第三颗行星[可按键盘的右方向键展开]"</Description>
+          <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>dsp_LocalStarData+28</Address>
+          <Offsets>
+            <Offset>30</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>662</ID>
+              <Description>"第三颗行星名称【从下向上，第一个20是相对于Array对象的固定偏移，再向上才是成员变量】"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>String</VariableType>
+              <Length>20</Length>
+              <Unicode>1</Unicode>
+              <CodePage>0</CodePage>
+              <ZeroTerminate>1</ZeroTerminate>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>14</Offset>
+                <Offset>20</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>663</ID>
+              <Description>"第三颗行星半径_radius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>18c</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>664</ID>
+              <Description>"第三颗行星_habitableBias"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>198</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>665</ID>
+              <Description>"第三颗行星_waterHeight"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>1c0</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>666</ID>
+              <Description>"第三颗行星尺寸倍率_scale"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>190</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>667</ID>
+              <Description>"第三颗行星轨道半径-orbitRadius，是一个系数，基准距离是1AU"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>164</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>668</ID>
+              <Description>"第三颗行星公转周期orbitPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>170</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>669</ID>
+              <Description>"第三颗行星公转_orbitPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>178</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>670</ID>
+              <Description>"第三颗行星自转周期rotationPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>180</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>671</ID>
+              <Description>"第三颗行星自转_rotationPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>188</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>364</ID>
+              <Description>"第三颗行星_uPosition-x"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>260</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>365</ID>
+              <Description>"第三颗行星_uPosition-y"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>268</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>366</ID>
+              <Description>"第三颗行星_uPosition-z"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>270</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>350</ID>
+          <Description>"第四颗行星[可按键盘的右方向键展开]"</Description>
+          <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>dsp_LocalStarData+28</Address>
+          <Offsets>
+            <Offset>38</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>672</ID>
+              <Description>"第四颗行星名称【从下向上，第一个20是相对于Array对象的固定偏移，再向上才是成员变量】"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>String</VariableType>
+              <Length>20</Length>
+              <Unicode>1</Unicode>
+              <CodePage>0</CodePage>
+              <ZeroTerminate>1</ZeroTerminate>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>14</Offset>
+                <Offset>20</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>673</ID>
+              <Description>"第四颗行星半径_radius"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>18c</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>674</ID>
+              <Description>"第四颗行星_habitableBias"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>198</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>675</ID>
+              <Description>"第四颗行星_waterHeight"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>1c0</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>676</ID>
+              <Description>"第四颗行星尺寸倍率_scale"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>190</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>677</ID>
+              <Description>"第四颗行星轨道半径-orbitRadius，是一个系数，基准距离是1AU"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>164</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>678</ID>
+              <Description>"第四颗行星公转周期orbitPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>170</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>679</ID>
+              <Description>"第四颗行星公转_orbitPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>178</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>680</ID>
+              <Description>"第四颗行星自转周期rotationPeriod，秒"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Double</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>180</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>681</ID>
+              <Description>"第四颗行星自转_rotationPhase"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>Float</VariableType>
+              <Address>dsp_LocalStarData+28</Address>
+              <Offsets>
+                <Offset>188</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>459</ID>
+          <Description>"所有的球壳LayerID[可按键盘的右方向键展开]"</Description>
+          <Options moHideChildren="1" moAllowManualCollapseAndExpand="1"/>
+          <ShowAsHex>1</ShowAsHex>
+          <ShowAsSigned>0</ShowAsSigned>
+          <VariableType>8 Bytes</VariableType>
+          <Address>current_layer_table</Address>
+          <Offsets>
+            <Offset>0</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>691</ID>
+              <Description>"第1个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>461</ID>
+              <Description>"第2个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table+8</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>462</ID>
+              <Description>"第3个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table+0x10</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>463</ID>
+              <Description>"第4个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table+0x18</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>464</ID>
+              <Description>"第5个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table+0x20</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>465</ID>
+              <Description>"第6个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table+0x28</Address>
+              <Offsets>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>466</ID>
+              <Description>"第7个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>30</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>467</ID>
+              <Description>"第8个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>38</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>468</ID>
+              <Description>"第9个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>40</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>469</ID>
+              <Description>"第10个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>48</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>529</ID>
+              <Description>"第11个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>50</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>530</ID>
+              <Description>"第12个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>58</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>531</ID>
+              <Description>"第13个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>60</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>532</ID>
+              <Description>"第14个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>68</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>533</ID>
+              <Description>"第15个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>70</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>534</ID>
+              <Description>"第16个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>78</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>535</ID>
+              <Description>"第17个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>80</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>536</ID>
+              <Description>"第18个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>88</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>537</ID>
+              <Description>"第19个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>90</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>538</ID>
+              <Description>"第20个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>98</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>539</ID>
+              <Description>"第21个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>a0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>540</ID>
+              <Description>"第22个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>a8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>541</ID>
+              <Description>"第23个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>b0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>542</ID>
+              <Description>"第24个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>b8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>543</ID>
+              <Description>"第25个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>c0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>544</ID>
+              <Description>"第26个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>c8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>545</ID>
+              <Description>"第27个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>d0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>546</ID>
+              <Description>"第28个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>d8</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>547</ID>
+              <Description>"第29个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>e0</Offset>
+              </Offsets>
+            </CheatEntry>
+            <CheatEntry>
+              <ID>548</ID>
+              <Description>"第30个球壳的LayerID"</Description>
+              <ShowAsSigned>0</ShowAsSigned>
+              <VariableType>4 Bytes</VariableType>
+              <Address>current_layer_table</Address>
+              <Offsets>
+                <Offset>70</Offset>
+                <Offset>e8</Offset>
+              </Offsets>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>7</ID>
+      <Description>"============================================"</Description>
+      <ShowAsSigned>0</ShowAsSigned>
+      <VariableType>4 Bytes</VariableType>
+      <Address/>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>8</ID>
       <Description>"============================================"</Description>
       <ShowAsSigned>0</ShowAsSigned>
       <VariableType>4 Bytes</VariableType>
       <Address/>
     </CheatEntry>
   </CheatEntries>
-  <UserdefinedSymbols/>
+  <UserdefinedSymbols>
+    <SymbolEntry>
+      <Name>dsp_game_main</Name>
+      <Address>1E1EA004D00</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_data</Name>
+      <Address>1E1EA004D18</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_camera_mgr</Name>
+      <Address>1E1EA007ED8</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_camera_main</Name>
+      <Address>1E1EA007ED0</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_local_star</Name>
+      <Address>1E36CB05B48</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>current_star_data</Name>
+      <Address>1E36CB05B48</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_local_planet</Name>
+      <Address>1E36CB05B50</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_main_player</Name>
+      <Address>1E36CB05B58</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_desc</Name>
+      <Address>1E36CB05AE0</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_game_galaxy</Name>
+      <Address>1E36CB05AE8</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>mod_data_exchange_array</Name>
+      <Address>2029C19DAA0</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>player_uspeed_times</Name>
+      <Address>1E362830000</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>want_speed_up_times</Name>
+      <Address>1E362830008</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>ce_mod_data_exchange_array</Name>
+      <Address>1EFDB2C5020</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_GameMain</Name>
+      <Address>1EDBCB54D00</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_GameMainData</Name>
+      <Address>1EDBCB54D18</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_GameCamera</Name>
+      <Address>1EDBCB57ED8</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_UnityCamera</Name>
+      <Address>1EDBCB57ED0</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_LocalStarData</Name>
+      <Address>1F01DAFF800</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_LocalPlanetData</Name>
+      <Address>1EFB5798320</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_MainPlayer</Name>
+      <Address>1EFDC797780</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_GalaxyData</Name>
+      <Address>1EFB339A240</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>dsp_spheres_array</Name>
+      <Address>1EF520C1800</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>current_sphere</Name>
+      <Address>1F0212F5640</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>current_layer_table</Name>
+      <Address>1EFDFA04820</Address>
+    </SymbolEntry>
+    <SymbolEntry>
+      <Name>current_layer_table_id_based</Name>
+      <Address>1EFDFA047A0</Address>
+    </SymbolEntry>
+  </UserdefinedSymbols>
+  <DisassemblerComments>
+    <DisassemblerComment>
+      <Address>2418CC1F9AD</Address>
+      <Comment>get proto prefab obj
+</Comment>
+    </DisassemblerComment>
+    <DisassemblerComment>
+      <Address>2418CE5947D</Address>
+      <Comment>if (this.type == ETurretType.Missile) 1
+</Comment>
+    </DisassemblerComment>
+  </DisassemblerComments>
 </CheatTable>
