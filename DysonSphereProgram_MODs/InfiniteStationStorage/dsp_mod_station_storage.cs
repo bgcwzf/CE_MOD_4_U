@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 using UnityEngine.EventSystems;
 
 //下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。
-//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown
-//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown
-//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown
+//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown,StorageComponent:Import
+//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown,DSP_CE_MOD.StorageComponent_StackSizeChange:new_Import
+//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown,DSP_CE_MOD.StorageComponent_StackSizeChange:old_Import
 //MOD_DESCRIPTION==>用于演示的第一个CE的MONO MOD DLL
 namespace DSP_CE_MOD
 {
@@ -96,6 +96,27 @@ namespace DSP_CE_MOD
 
             // 本函数内部必须留空。
             // 函数名称可以自由定义，但是函数返回值类型与参数列表必须与原函数完全一致
+        }
+    }
+	//所有的存储空间（背包/储物箱等），在加载存档后，对每一个格子，会使用ItemProto.StackSize来覆盖之前的设定。要在这里强制恢复一下。
+    public class StorageComponent_StackSizeChange : StorageComponent
+    {
+        public StorageComponent_StackSizeChange(int a) : base(a) { }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void new_Import(System.IO.BinaryReader r)
+        {
+            old_Import(r);
+            if (this.grids == null || this.grids.Length <= 0) return;
+            for (int i = 0; i < this.grids.Length; i++)
+            {
+                this.grids[i].stackSize = 0x7FFFFFFF - 10;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void old_Import(System.IO.BinaryReader r)
+        {
         }
     }
 }

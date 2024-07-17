@@ -88,12 +88,31 @@ namespace DSP_CE_MOD
         */
 
         static DSP_Storage_Vault g_static = null;//指向自身的单例
-        public static DSP_Storage_Vault get_single_instance()
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static DSP_Storage_Vault get_single_instance() //本函数将会在CE中使用LUA进行调用。
         {//指向自身的单例的创建方法
             if (g_static == null)
             {
                 g_static = new DSP_Storage_Vault();
             }
+
+            //修改在背包、储物箱等各种可以存放物品地方的最大堆叠数量
+            for (int i = 0; i < 12000; i++)
+            {
+                StorageComponent.itemStackCount[i] = 0x7FFFFFFF-10;
+            }
+            /*
+            //2024-07-16：最好不要在任何时刻，修改原始数据原型中的各个值。因为在这里存在完整性校验。会导致游戏异常。
+            var data_array = LDB.items.dataArray;
+            //Print_Message.Print(string.Format("DSP_TEMP_DBG:print_storage_info : LDB.items.dataArray length is {0}", data_array.Length));
+            for (int i = 0; i < data_array.Length; i++)
+            {
+                var item = data_array[i];
+                if (item == null || item.ID <= 0) continue;
+                item.StackSize= 0x7FFFFFFF-10;
+                //Print_Message.Print(string.Format("DSP_TEMP_DBG:print_storage_info :ItemProto[{0}].ID=[{1}].StackSize={2}", i, item.ID, item.StackSize));
+            }
+            */
             return g_static;
         }
         public static object[] ce_mod_data_exchange = new object[1024*10];//需要创建一个静态的数据交换区，使用CE中的LUA脚本来获取这个区域的地址：
