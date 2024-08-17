@@ -63,6 +63,11 @@ namespace DSP_CE_MOD
             Print_Message.Print(string.Format("RegouopVeins_PlayerAction_Inspect ...onKeyResp(KeyCode:{0})",keyCode));
             var pv_planetId = PrivateHelper<Player>.GetPrivateField("_planetId");
             int cur_planet_id = (int)pv_planetId.GetValue(this.player);
+            if (DSP_Storage_Vault.ce_mod_data_exchange[4] == null)
+            {
+                DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+            }
+            current_group_idx = (int)DSP_Storage_Vault.ce_mod_data_exchange[4];//从全局共享数据区的第四个位置取出来当前序号值
             Print_Message.Print(string.Format("RegouopVeins_PlayerAction_Inspect.Current Resource Group ID: {0} on Planet [ID:{1}]", current_group_idx, cur_planet_id));
             if (this.player.movementState == EMovementState.Sail|| cur_planet_id <= 0)//在太空中航行时，这些快捷键不生效。但是可以执行卸载程序
             {
@@ -70,11 +75,16 @@ namespace DSP_CE_MOD
                 //PopupMessage("因为现在已离开星球，所以先禁用资源组操作MOD。");
                 last_planet_id = 0;
                 current_group_idx = 0;
+                //保存新值到全局共享数据区的第四个位置
+                DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)current_group_idx;//类型也置0
                 return;
             }
             if (last_planet_id != cur_planet_id)
             {//行星发生了变化，也要重置当前序号
                 current_group_idx = 0;
+                DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)current_group_idx;//类型也置0
             }
             last_planet_id = cur_planet_id;
             string tmp_str = "";
@@ -82,7 +92,7 @@ namespace DSP_CE_MOD
             if (DSP_Storage_Vault.ce_mod_data_exchange[2] == null)
             {
                 //因为第一次使用时，该项为null，首先要装箱一个int对象进来，然后CE中才可以修改它的值
-                int a = 10000;
+                int a = 0;
                 DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)a;
             }
             EVeinType veinType=EVeinType.None;
@@ -98,6 +108,8 @@ namespace DSP_CE_MOD
                     if (Input.GetKey(KeyCode.LeftShift))
                     {//按下左边的Shift+F1的时候，初始化当前的groupIdx=1
                         current_group_idx = 1;
+                        DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                        DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)((int)this.player.planetData.factory.veinGroups[current_group_idx].type);
                         PopupMessage("已经将当前资源组的操作序号设置为 1");
                         //因为【0】号元素是默认的一个占位元素。所以有效的下标从1开始
                         break;
@@ -119,6 +131,8 @@ namespace DSP_CE_MOD
                             break;
                         }
                         current_group_idx--;
+                        DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                        DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)((int)this.player.planetData.factory.veinGroups[current_group_idx].type);
                         PopupMessage(string.Format("当前资源组序号：{0}", current_group_idx));
                         break;
                     }
@@ -130,6 +144,8 @@ namespace DSP_CE_MOD
                         break;
                     }
                     current_group_idx++;
+                    DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                    DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)((int)this.player.planetData.factory.veinGroups[current_group_idx].type);
                     PopupMessage(string.Format("当前资源组序号：{0}", current_group_idx));
                     break;
                 case KeyCode.F3:
@@ -230,12 +246,14 @@ namespace DSP_CE_MOD
                     break;
                 case KeyCode.F8:
                     //this.player.factory.DebugEntityGUI();
-                   // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    //GameMain.history.solarSailLife += 100;
+                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    GameMain.history.solarSailLife += 10000000;
                     break;
                 case KeyCode.F9:
-                   // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
                     //GameMain.history.solarSailLife += 100;
+                    VFAudio.Create("ui-click-2", null, Vector3.zero, true);
+                    GameMain.history.solarSailLife = 10000000;
                     break;
                 case KeyCode.F10:
                     break;
@@ -562,6 +580,8 @@ namespace DSP_CE_MOD
             this.player.planetData.factory.RecalculateVeinGroup(newGrpIdx);
 
             this.player.factory.ArrangeVeinGroups();
+            current_group_idx = newGrpIdx;
+            DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
             /*
             if (cnt == 0)
             {
@@ -684,10 +704,14 @@ namespace DSP_CE_MOD
                 {
                     string str2 = string.Format("当前操作选定了无效的资源组【{0}】",current_group_idx);
                     current_group_idx = 0;
+                    DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                    DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)current_group_idx;
                     PopupMessage(str2);
                     Print_Message.Print(str2);
                     return;
                 }
+                DSP_Storage_Vault.ce_mod_data_exchange[4] = (object)current_group_idx;
+                DSP_Storage_Vault.ce_mod_data_exchange[2] = (object)((int)this.player.planetData.factory.veinGroups[current_group_idx].type);
                 Print_Message.Print(string.Format("==>Mouse click on Current Resource Group [groupID: {0} type:{1} amount:{2} vein_count:{3}]",
                     current_group_idx, grps[current_group_idx].type, grps[current_group_idx].amount, grps[current_group_idx].count));
             }

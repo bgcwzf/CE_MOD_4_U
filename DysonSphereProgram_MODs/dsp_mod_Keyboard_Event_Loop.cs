@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 //using System.Speech.Synthesis;
 //注意：所有包含了中文字符的cs文件，需要以GB2312编码方式保存
-//下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。多个Patch项之间，用英文逗号分隔
+//下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。多个Patch项之间，用英文"|"分隔
 //MOD_PATCH_TARGET==>GameData:Update
 //MOD_NEW_METHOD==>DSP_CE_MOD.GameData_Update_Patch:new_Update
 //MOD_OLD_CALLER==>DSP_CE_MOD.GameData_Update_Patch:old_Update

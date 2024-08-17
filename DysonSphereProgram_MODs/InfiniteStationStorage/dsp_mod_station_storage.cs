@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 using UnityEngine.EventSystems;
 
 //下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。
-//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown,StorageComponent:Import
-//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown,DSP_CE_MOD.StorageComponent_StackSizeChange:new_Import
-//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown,DSP_CE_MOD.StorageComponent_StackSizeChange:old_Import
+//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown|StorageComponent:Import
+//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:new_Import
+//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:old_Import
 //MOD_DESCRIPTION==>用于演示的第一个CE的MONO MOD DLL
 namespace DSP_CE_MOD
 {

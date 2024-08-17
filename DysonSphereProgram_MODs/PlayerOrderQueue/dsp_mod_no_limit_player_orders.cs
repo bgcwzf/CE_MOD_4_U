@@ -6,11 +6,11 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine.EventSystems;
 
-//下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。PlayerOrder:.ctor,DSP_CE_MOD.Patch_PlayerOrder:new_PlayerOrder,DSP_CE_MOD.Patch_PlayerOrder:old_PlayerOrder,
-//MOD_PATCH_TARGET==>PlayerOrder:_trimEnd,PlayerOrder:Enqueue
-//MOD_NEW_METHOD==>DSP_CE_MOD.Patch_PlayerOrder:new_trimEnd,DSP_CE_MOD.Patch_PlayerOrder:new_Enqueue
-//MOD_OLD_CALLER==>DSP_CE_MOD.Patch_PlayerOrder:old_trimEnd,DSP_CE_MOD.Patch_PlayerOrder:old_Enqueue
-//MOD_DESCRIPTION==>用于演示的第一个CE的MONO MOD DLL
+//下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。
+//MOD_PATCH_TARGET==>PlayerOrder:_trimEnd|PlayerOrder:Enqueue
+//MOD_NEW_METHOD==>DSP_CE_MOD.Patch_PlayerOrder:new_trimEnd|DSP_CE_MOD.Patch_PlayerOrder:new_Enqueue
+//MOD_OLD_CALLER==>DSP_CE_MOD.Patch_PlayerOrder:old_trimEnd|DSP_CE_MOD.Patch_PlayerOrder:old_Enqueue
+//MOD_DESCRIPTION==>【暂时禁用】尝试修改用户按住Shift键后的最大命令队列长度（默认是16个命令）
 namespace DSP_CE_MOD
 {
     public class Patch_PlayerOrder : PlayerOrder
