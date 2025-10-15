@@ -20,6 +20,7 @@ namespace DSP_CE_MOD
         public void PopupMessage(string msg,bool sound=false)
         {
             UIRealtimeTip.Popup(msg, sound, 0);
+            //UIRealtimeTip.PopupAhead();
         }
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void ShowMessageBox(string msg)
@@ -247,13 +248,15 @@ namespace DSP_CE_MOD
                 case KeyCode.F8:
                     //this.player.factory.DebugEntityGUI();
                     VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    GameMain.history.solarSailLife += 10000000;
+                    this.player.planetData.physics.SetPlanetPhysicsColliderDirty();
+                    this.player.planetData.physics.RefreshColliders();
+                    //GameMain.history.solarSailLife += 10000000;
                     break;
                 case KeyCode.F9:
                     // VFAudio.Create("ui-click-2", null, Vector3.zero, true);
                     //GameMain.history.solarSailLife += 100;
                     VFAudio.Create("ui-click-2", null, Vector3.zero, true);
-                    GameMain.history.solarSailLife = 10000000;
+                    //GameMain.history.solarSailLife = 10000000;
                     break;
                 case KeyCode.F10:
                     break;
@@ -366,7 +369,9 @@ namespace DSP_CE_MOD
         {
             if (groupID <= 0) return false;
             var pool = this.player.planetData.factory.veinPool;
+            var veinPool = pool;
             var grps = this.player.planetData.factory.veinGroups;
+            var pd = this.player.factory.planet;
             /*for (int i = 0; i < grps.Length; i++)
             {
                 var g = grps[i];
@@ -378,6 +383,16 @@ namespace DSP_CE_MOD
                 if (v.groupIndex == groupID)
                 {
                     SetObjectPos(EObjectType.Vein, i, new_pos);
+                    int VeinId = v.id;
+                    if (this.player.factory.planet.physics != null)
+                    {
+                        int colliderId = pool[i].colliderId;
+                        pd.physics.RemoveColliderData(colliderId);
+                        //添加碰撞信息，如果不添加，则必须飞出当前星球超过1000m之后再回头，或者退出游戏重新加载存档进入，才能更新矿脉显示
+                        veinPool[i].colliderId = pd.physics.AddColliderData(LDB.veins.Select((int)veinPool[VeinId].type).prefabDesc.colliders[0].BindToObject(VeinId, 0, EObjectType.Vein, veinPool[VeinId].pos, Quaternion.FromToRotation(Vector3.up, veinPool[VeinId].pos.normalized)));
+
+                        pd.factoryModel.gpuiManager.AlterModel((int)veinPool[VeinId].modelIndex, veinPool[VeinId].modelId, VeinId, veinPool[VeinId].pos, Maths.SphericalRotation(veinPool[VeinId].pos, 90f));
+                    }
                     cnt++;
                     /*
                     if (this.player.factory.planet.physics != null)
@@ -399,6 +414,43 @@ namespace DSP_CE_MOD
             after_work_of_veins();
             return true;
         }
+        /*
+        private void changeveingrouppos(VeinData vd)
+        {
+            PlanetData pd = GameMain.localPlanet;
+            if (pd == null || pd.type == EPlanetType.Gas) return;
+            RaycastHit raycastHit1;
+            if (pd == null || !Physics.Raycast(GameMain.mainPlayer.controller.mainCamera.ScreenPointToRay(Input.mousePosition), out raycastHit1, 800f, 8720, (QueryTriggerInteraction)2))
+                return;
+            Vector3 raycastpos = raycastHit1.point;
+            VeinData[] veinPool = pd.factory.veinPool;
+            int colliderId;
+            Vector3 begin = veinPool[vd.id].pos;
+            int index = 0;
+            foreach (VeinData vd1 in veinPool)
+            {
+                if (vd1.pos == null || vd1.id <= 0) continue;
+                int VeinId = vd1.id;
+                if (vd1.groupIndex == vd.groupIndex)
+                {
+                    Vector3 temp = PostionCompute(begin, raycastpos, vd1.pos, index++, vd.type == EVeinType.Oil);
+                    if (Vector3.Distance(temp, vd1.pos) < 0.01) continue;
+                    veinPool[VeinId].pos = temp;
+                    if (float.IsNaN(veinPool[VeinId].pos.x) || float.IsNaN(veinPool[VeinId].pos.y) || float.IsNaN(veinPool[VeinId].pos.z))
+                    {
+                        continue;
+                    }
+                    colliderId = veinPool[VeinId].colliderId;
+                    pd.physics.RemoveColliderData(colliderId);
+                    veinPool[VeinId].colliderId = pd.physics.AddColliderData(LDB.veins.Select((int)veinPool[VeinId].type).prefabDesc.colliders[0].BindToObject(VeinId, 0, EObjectType.Vein, veinPool[VeinId].pos, Quaternion.FromToRotation(Vector3.up, veinPool[VeinId].pos.normalized)));
+
+                    pd.factoryModel.gpuiManager.AlterModel((int)veinPool[VeinId].modelIndex, veinPool[VeinId].modelId, VeinId, veinPool[VeinId].pos, Maths.SphericalRotation(veinPool[VeinId].pos, 90f));
+
+                }
+            }
+
+            pd.veinGroups[veinPool[vd.id].groupIndex].pos = veinPool[vd.id].pos / (pd.realRadius + 2.5f);
+        }*/
         public bool SetAmoutOfResourceGroup(int groupID)
         {
             if (groupID <= 0) return false;
@@ -433,6 +485,7 @@ namespace DSP_CE_MOD
             if (groupID <= 0) return false;
             var pool = this.player.planetData.factory.veinPool;
             var grps = this.player.planetData.factory.veinGroups;
+            var pd = this.player.factory.planet;
             /*for (int i = 0; i < grps.Length; i++)
             {
                 var g = grps[i];
@@ -445,14 +498,22 @@ namespace DSP_CE_MOD
                 {
                     cnt++;
 
+                    VeinProto veinProto = LDB.veins.Select((int)v.type);
+                    ColliderData[] colliders = veinProto.prefabDesc.colliders;
                     for (int j = 0; j < vein_item_count_to_add; j++)
                     {
                         var new_vein = new VeinData();
                         new_vein = v;
                         new_vein.amount = 20000;
-                        this.player.planetData.factory.AddVeinData(new_vein);
-                    }
+                        new_vein.id=this.player.planetData.factory.AddVeinData(new_vein);
 
+                        int num2 = 0;
+                        while (colliders != null && num2 < colliders.Length)
+                        {//添加碰撞信息，如果不添加，则必须飞出当前星球超过1000m之后再回头，或者退出游戏重新加载存档进入，才能更新矿脉显示
+                            new_vein.colliderId = pd.physics.AddColliderData(colliders[num2].BindToObject(new_vein.id, 0, EObjectType.Vein, new_vein.pos, Quaternion.FromToRotation(Vector3.up, new_vein.pos.normalized)));
+                            num2++;
+                        }
+                    }
                     break;
                 }
             }
@@ -545,6 +606,7 @@ namespace DSP_CE_MOD
             int[] veinModelCounts = PlanetModelingManager.veinModelCounts;
             int[] veinProducts = PlanetModelingManager.veinProducts;
             //PlanetRawData data = this.player.planetData.data;
+            var pd = this.player.factory.planet;
             for (int n = 0; n < vein_item_count_to_add; n++)
             {
                 //Vector3 b = (this.tmp_vecs[n].x * a + this.tmp_vecs[n].y * a2) * num;
@@ -561,6 +623,7 @@ namespace DSP_CE_MOD
                 VeinData[] veinPool = this.player.planetData.factory.veinPool;
                 //data.AddVeinData(veinData); // maybe
                 int num = this.player.planetData.factory.AddVeinData(veinData);//get new Idx in veinPool
+                veinData.id = num;
 
                 //Print_Message.Print(string.Format("now vein pool length:{0}",veinPool.Length));
                 veinPool[num].modelId = this.player.planetData.factoryModel.gpuiManager.AddModel((int)veinPool[num].modelIndex, num, veinPool[num].pos, new Quaternion(), true);
@@ -574,6 +637,14 @@ namespace DSP_CE_MOD
                     veinPool[num].colliderId = this.planet.physics.AddColliderData(colliders[num2].BindToObject(num, veinPool[num].colliderId, EObjectType.Vein, veinPool[num].pos, Quaternion.FromToRotation(Vector3.up, veinPool[num].pos.normalized)));
                     num2++;
                 }*/
+                VeinProto veinProto = LDB.veins.Select(newType);
+                ColliderData[] colliders = veinProto.prefabDesc.colliders;
+                int num2 = 0;
+                while (colliders != null && num2 < colliders.Length)
+                {//添加碰撞信息，如果不添加，则必须飞出当前星球超过1000m之后再回头，或者退出游戏重新加载存档进入，才能更新矿脉显示
+                    veinData.colliderId = pd.physics.AddColliderData(colliders[num2].BindToObject(veinData.id, 0, EObjectType.Vein, veinData.pos, Quaternion.FromToRotation(Vector3.up, veinData.pos.normalized)));
+                    num2++;
+                }
                 this.player.planetData.factory.RefreshVeinMiningDisplay(num, 0, 0);
             }
 

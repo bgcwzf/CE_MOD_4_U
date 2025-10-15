@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 using UnityEngine.EventSystems;
 
 //下面几个 //MOD_XXXX==> 是固定写法，用于给CE提供相关加载信息，必须按此格式写。
-//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown|StorageComponent:Import
-//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:new_Import
-//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:old_Import
+//MOD_PATCH_TARGET==>UIStationStorage:OnItemIconMouseDown|StorageComponent:Import|PlayerAction_Inspect:GetObjectSelectDistance
+//MOD_NEW_METHOD==>DSP_CE_MOD.My_UIStationStorage:new_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:new_Import|DSP_CE_MOD.PlayerAction_Inspect_Select_From_Far:new_GetObjectSelectDistance
+//MOD_OLD_CALLER==>DSP_CE_MOD.My_UIStationStorage:old_OnItemIconMouseDown|DSP_CE_MOD.StorageComponent_StackSizeChange:old_Import|DSP_CE_MOD.PlayerAction_Inspect_Select_From_Far:old_GetObjectSelectDistance
 //MOD_DESCRIPTION==>用于演示的第一个CE的MONO MOD DLL
 namespace DSP_CE_MOD
 {
@@ -118,5 +118,12 @@ namespace DSP_CE_MOD
         public void old_Import(System.IO.BinaryReader r)
         {
         }
+    }
+    public class PlayerAction_Inspect_Select_From_Far : PlayerAction_Inspect
+    {//解决了在较远地方无法对建筑物进行点选和操作的问题
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public float new_GetObjectSelectDistance(EObjectType objType, int objid) { return 1200.0f; }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public float old_GetObjectSelectDistance(EObjectType objType, int objid) { return 0.0f; }
     }
 }

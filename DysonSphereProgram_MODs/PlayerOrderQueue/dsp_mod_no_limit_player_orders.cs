@@ -15,7 +15,7 @@ namespace DSP_CE_MOD
 {
     public class Patch_PlayerOrder : PlayerOrder
     {
-        public Patch_PlayerOrder(Player _player):base(_player) { }
+        public Patch_PlayerOrder(Player _player) : base(_player) { }
         // UIStationStorage
         // Token: 0x06000EFA RID: 3834 RVA: 0x00108FE8 File Offset: 0x001071E8
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -24,7 +24,7 @@ namespace DSP_CE_MOD
             old_PlayerOrder(_player);
             var f = PrivateHelper<PlayerOrder>.GetPrivateField("orderQueue");
 
-            f.SetValue(this,new OrderNode[9999999]);
+            f.SetValue(this, new OrderNode[9999999]);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -41,7 +41,7 @@ namespace DSP_CE_MOD
         public void new_trimEnd()
         {
             if (this == null) return;
-            
+
             var f = PrivateHelper<PlayerOrder>.GetPrivateField("orderQueue");
             if (f == null) return;
             var q = (OrderNode[])f.GetValue(this);
@@ -65,21 +65,21 @@ namespace DSP_CE_MOD
                 return;
             }
             OrderNode[] orderQueue = this.orderQueue;
-            if(orderQueue.Length!= 9999999)
+            if (orderQueue.Length != 9999999)
             {
                 var f1 = PrivateHelper<PlayerOrder>.GetPrivateField("orderQueue");
                 f1.SetValue(this, new OrderNode[9999999]);
             }
             int orderCount = this.orderCount;
             var f = PrivateHelper<PlayerOrder>.GetPrivateField("orderCount");
-            f.SetValue(this,orderCount+1);// this.orderCount = orderCount + 1;
+            f.SetValue(this, orderCount + 1);// this.orderCount = orderCount + 1;
             f = PrivateHelper<PlayerOrder>.GetPrivateField("orderQueue");
             var q = (OrderNode[])f.GetValue(this);
             q[orderCount] = order;//orderQueue[orderCount] = order;
             if (this.currentOrder == null)
             {
                 var c = PrivateHelper<PlayerOrder>.GetPrivateField("currentOrder");
-                var ret=PrivateHelper<PlayerOrder>.InvokeMethodNonRefParams("Dequeue", this);
+                var ret = PrivateHelper<PlayerOrder>.InvokeMethodNonRefParams("Dequeue", this);
                 c.SetValue(this, ret);//this.currentOrder = this.Dequeue();
             }
             var p = PrivateHelper<PlayerOrder>.GetPrivateField("player");
